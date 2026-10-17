@@ -17,7 +17,7 @@ The planned system collects Amazon GuardDuty findings and selected AWS CloudTrai
 
 ## Inception UI Prototype
 
-The current `feature/fa1-screens` branch implements the FA1 frontend prototype using fictional mock data. It is a runnable slice of the planned team application, not the complete application.
+The repository currently includes the FA1 frontend prototype using fictional mock data. It is a runnable slice of the planned team application.
 
 Implemented FA1 screens cover security signal sources, monitored event configuration, normalized alert browsing, and alert details. A reusable temporary layout provides the AlertChain Agent header and sidebar.
 
@@ -38,7 +38,6 @@ Install Git, Node.js, and npm. The tooling locked in `package-lock.json` support
 ```sh
 git clone https://github.com/AlertChain-Capstone/alertchain-agent.git
 cd alertchain-agent
-git switch feature/fa1-screens
 npm ci
 npm run dev
 ```
