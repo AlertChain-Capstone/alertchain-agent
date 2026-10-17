@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 
-function useModal(onCancel) {
+// Opens the <dialog> as a modal while mounted; returns the ref to attach.
+function useModalRef() {
   const ref = useRef(null)
   useEffect(() => {
     const dialog = ref.current
     dialog.showModal()
     return () => dialog.close()
   }, [])
-  return { ref, onCancel: (e) => { e.preventDefault(); onCancel() } }
+  return ref
 }
 
 function listSteps(steps) {
@@ -17,13 +18,13 @@ function listSteps(steps) {
 
 // True positive – escalate. Extension 5b (open next steps) and 6a (no note).
 export function EscalateDialog({ openSteps, onCancel, onSubmit }) {
-  const modal = useModal(onCancel)
+  const dialogRef = useModalRef()
   const [note, setNote] = useState('')
   const open = openSteps.length > 0
   const empty = !note.trim()
 
   return (
-    <dialog ref={modal.ref} onCancel={modal.onCancel} className="fa1-dialog" aria-labelledby="fa2-escalate-title">
+    <dialog ref={dialogRef} onCancel={(e) => { e.preventDefault(); onCancel() }} className="fa1-dialog" aria-labelledby="fa2-escalate-title">
       <form onSubmit={(e) => { e.preventDefault(); onSubmit(note.trim()) }}>
         <h2 id="fa2-escalate-title">
           {open ? `${openSteps.length} next ${openSteps.length === 1 ? 'step is' : 'steps are'} not ticked off` : 'Escalate as True positive'}
@@ -53,12 +54,12 @@ export function EscalateDialog({ openSteps, onCancel, onSubmit }) {
 
 // Close as Benign or False positive – extension 5a. A reason is required.
 export function CloseAsDialog({ initialType, onCancel, onSubmit }) {
-  const modal = useModal(onCancel)
+  const dialogRef = useModalRef()
   const [type, setType] = useState(initialType)
   const [reason, setReason] = useState('')
 
   return (
-    <dialog ref={modal.ref} onCancel={modal.onCancel} className="fa1-dialog" aria-labelledby="fa2-close-title">
+    <dialog ref={dialogRef} onCancel={(e) => { e.preventDefault(); onCancel() }} className="fa1-dialog" aria-labelledby="fa2-close-title">
       <form onSubmit={(e) => { e.preventDefault(); if (reason.trim()) onSubmit(type, reason.trim()) }}>
         <h2 id="fa2-close-title">Close this alert without escalating?</h2>
         <p className="fa2-dialog-text">
