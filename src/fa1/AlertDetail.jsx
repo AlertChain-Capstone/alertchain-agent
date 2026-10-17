@@ -5,17 +5,44 @@ export default function AlertDetail({ alert, onBack, onInvestigate, onOpenIncide
   const headingRef = useRef(null)
   const [copyMessage, setCopyMessage] = useState('')
   const [copying, setCopying] = useState(false)
+  const [simulateUnavailable, setSimulateUnavailable] = useState(false)
 
   useEffect(() => {
     headingRef.current?.focus()
-  }, [alert?.id])
+  }, [alert?.id, simulateUnavailable])
 
-  if (!alert) {
+  const demoControl = alert && (
+    <div className="fa1-scenario-controls fa1-alert-demo-controls">
+      <div className="fa1-filter">
+        <label htmlFor="alert-detail-demo-scenario">Alert details demo scenario</label>
+        <select
+          id="alert-detail-demo-scenario"
+          value={simulateUnavailable ? 'unavailable' : 'available'}
+          aria-describedby="alert-detail-demo-status"
+          onChange={(event) => {
+            setSimulateUnavailable(event.target.value === 'unavailable')
+            setCopyMessage('')
+          }}
+        >
+          <option value="available">Selected alert available</option>
+          <option value="unavailable">Alert no longer available</option>
+        </select>
+      </div>
+      <p id="alert-detail-demo-status" className="fa1-muted" role="status" aria-atomic="true">
+        {simulateUnavailable
+          ? 'Demo: the selected alert is unavailable. Restore it with this selector; fixture data is unchanged.'
+          : 'Showing the selected sample alert. This demo does not change fixture data.'}
+      </p>
+    </div>
+  )
+
+  if (!alert || simulateUnavailable) {
     return (
       <section>
         <p className="fa1-breadcrumb">Alerts &amp; Sources / Alerts</p>
         <h1 ref={headingRef} tabIndex={-1}>Alert no longer available</h1>
         <p className="fa1-demo">Inception prototype — fictional data and simulated connections</p>
+        {demoControl}
         <button type="button" onClick={onBack}>Back to alerts</button>
       </section>
     )
@@ -61,6 +88,7 @@ export default function AlertDetail({ alert, onBack, onInvestigate, onOpenIncide
       </div>
       <p className="fa1-description">{alert.source} · <time dateTime={alert.occurredAt}>{timestamp}</time></p>
       <p className="fa1-demo">Inception prototype — fictional data and simulated connections</p>
+      {demoControl}
 
       <div className="fa1-actions">
         {/* FA2/FA3 can supply these callbacks when the handoff is integrated. */}
