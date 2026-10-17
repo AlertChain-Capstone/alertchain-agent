@@ -15,7 +15,7 @@ const eventDetails = {
   ConsoleLogin: ['Sign-in', 'Failed sign-ins may indicate password guessing'],
 }
 
-export default function Fa1App() {
+export default function Fa1App({ onInvestigate, onOpenIncident }) {
   const [message, setMessage] = useState('')
   const [editorOpen, setEditorOpen] = useState(false)
   const [monitoredEvents, setMonitoredEvents] = useState(data.monitoredEvents)
@@ -128,6 +128,8 @@ export default function Fa1App() {
           key={selectedAlertId}
           alert={data.alerts.find((alert) => alert.id === selectedAlertId)}
           onBack={backToAlerts}
+          onInvestigate={onInvestigate}
+          onOpenIncident={onOpenIncident}
         />
       ) : (
         <>

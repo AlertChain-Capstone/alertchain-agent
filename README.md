@@ -21,7 +21,7 @@ The repository currently includes the FA1 frontend prototype using fictional moc
 
 Implemented FA1 screens cover security signal sources, monitored event configuration, normalized alert browsing, and alert details. A reusable temporary layout provides the AlertChain Agent header and sidebar.
 
-Investigation, incident dashboard, and Ask-the-Agent views remain planned work. Live AWS ingestion, AI investigations, and backend integration are also planned.
+The FA2 investigation prototype (Investigation View, Reasoning Trace, Attack Chain) is integrated through the shared sidebar and the alert-detail **Investigate** and **Open incident** buttons. The incident dashboard and Ask-the-Agent views (FA3) remain planned work. Live AWS ingestion, AI investigations, and backend integration are also planned.
 
 ## Technology
 
@@ -90,9 +90,9 @@ Source scenarios apply to both cards; recoveries operate independently. Switchin
 
 ## FA2 Investigation Prototype
 
-FA2 (Agentic Reasoning & Correlation, owner: Harneet Kaur) lives in `src/fa2/` with fixtures in `src/mock/fa2.json`. It reads the FA1 alert fixtures read-only and does not change any FA1 file.
+FA2 (Agentic Reasoning & Correlation, owner: Harneet Kaur) lives in `src/fa2/` with fixtures in `src/mock/fa2.json`. It reads the FA1 alert fixtures read-only.
 
-Open it at **`http://localhost:5173/#/investigations`** (or use the **Investigations & Incidents** item in the FA2 sidebar; **Alerts & Sources** goes back to FA1). The FA1 Investigate button stays disabled until the FA1↔FA2 handoff is wired together.
+Open it with **Investigations & Incidents** in the sidebar (or `http://localhost:5173/#/investigations`); **Alerts & Sources** goes back to FA1. From an FA1 alert's details, **Investigate** starts or opens that alert's investigation (with the same threshold and already-running/closed rules) and **Open incident** opens the investigation behind the incident.
 
 The agent is simulated: new investigations add one reasoning step about every second and finish with a verdict, confidence score and recommended next steps. No AWS, Bedrock or backend calls are made.
 
@@ -110,6 +110,7 @@ Each row maps to a use case extension in the shared Visual Paradigm project and 
 
 | # | Screen or state | Steps to display it |
 | --- | --- | --- |
+| 0 | Handoff from FA1 | **Alerts & Sources → Alerts**, click **ALT-002**, then **Investigate** (opens INV-001) or **Open incident INC-001**. **ALT-004** shows the below-threshold dialog; **ALT-003** starts a new run. |
 | 1 | Investigation View – verdict and next steps | Open **INV-001**. Tick steps, use a quick action, or click **Open filtered trace**. |
 | 2 | Reasoning Trace | In INV-001 click **Reasoning Trace**; expand any step. |
 | 3 | Attack Chain Graph | In INV-001 click **Attack Chain**; select a node; **View in reasoning trace** jumps to its step. |
@@ -132,14 +133,14 @@ Each row maps to a use case extension in the shared Visual Paradigm project and 
 | 20 | Already resolved by someone else (Resolve 7a) | Set **Close-out scenario → Another analyst resolves it first**, then close out INV-001. |
 | 21 | Resolution could not be saved (Resolve 7b) | Set **Close-out scenario → Save fails once**, close out INV-001, then click **Retry** in the banner. |
 
-State is held in React and resets when the page is refreshed.
+State is held in React and resets when the page is refreshed. Switching between FA1 and FA2 in the sidebar keeps each area's state.
 
 ## Current Limitations and Planned Work
 
 - Data is fictional. Connection tests, configuration, recovery, and save-failure actions are simulated; source scenarios do not alter the alert fixtures or generate live events.
 - State is held locally in React and resets on refresh. There is no server-side persistence or authentication; “SOC Analyst” is a prototype label.
-- Dashboard, investigation, and incident handoffs await FA2/FA3 integration. Investigate and Open incident controls are intentionally disabled with explanations; no investigation runs.
-- The temporary FA1 layout can later be replaced by the team's shared layout. The full team application and planned backend architecture are not complete.
+- The Dashboard (FA3) is not built yet and stays disabled in the sidebar. **Investigate** hands the alert to FA2's simulated investigation. **Open incident** shows the FA2 investigation behind the incident until FA3's incident report exists.
+- `Fa1Layout` is the shared shell for all functional areas; `App.jsx` switches areas with hash routes (`#/` for FA1, `#/investigations` for FA2) and keeps both areas mounted so their state survives switching. The full team application and planned backend architecture are not complete.
 - Backend services, live AWS ingestion, AI reasoning/correlation, and evidence-based incident reports are planned work, not implemented features of this prototype.
 - Copy JSON depends on browser clipboard support and permission. If copying fails, the JSON remains available for manual copying.
 

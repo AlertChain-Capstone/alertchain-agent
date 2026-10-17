@@ -107,6 +107,14 @@
   background: #e6eef7;
 }
 
+.fa1-main-nav-link {
+  text-decoration: none;
+}
+
+.fa1-main-nav-link:hover {
+  background: #e4e7ec;
+}
+
 .fa1-integration-note {
   margin-top: 4px;
   line-height: 1.4;

@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { advance, alertById, config, formatTime, initialInvestigations, isBelowThreshold, newInvestigation } from './fa2Data'
-import StartInvestigation from './StartInvestigation'
+import StartInvestigation, { BelowThresholdDialog } from './StartInvestigation'
 import InvestigationHeader from './InvestigationHeader'
 import InvestigationOverview from './InvestigationOverview'
 import ReasoningTrace from './ReasoningTrace'
@@ -10,12 +10,14 @@ import './fa2.css'
 const STEP_DELAY = 1500
 const SAVE_DELAY = 800
 
-export default function Fa2App() {
+// `ref` lets the FA1 Alert Detail buttons hand an alert or incident to FA2.
+export default function Fa2App({ ref }) {
   const [investigations, setInvestigations] = useState(initialInvestigations)
   const [view, setView] = useState({ name: 'home' })
   const [startScenario, setStartScenario] = useState('normal')
   const [closeoutScenario, setCloseoutScenario] = useState('normal')
   const [message, setMessage] = useState('')
+  const [lowSeverityAlert, setLowSeverityAlert] = useState(null)
   const headingRef = useRef(null)
   const saveTimer = useRef(null)
   const openIdRef = useRef(null)
@@ -68,6 +70,26 @@ export default function Fa2App() {
     startNew(alert)
     return 'started'
   }
+
+  function investigate(alert) {
+    if (requestInvestigation(alert) === 'belowThreshold') {
+      setView({ name: 'home' })
+      setLowSeverityAlert(alert)
+    }
+  }
+
+  // Handoffs from FA1: "Investigate" and "Open incident" on the Alert Detail page.
+  useImperativeHandle(ref, () => ({
+    investigateAlert(alertId) {
+      const alert = alertById(alertId)
+      if (alert) investigate(alert)
+    },
+    openIncident(incidentId) {
+      const inv = investigations.find((item) => item.incidentId === incidentId)
+      if (inv) open(inv.id, { notice: { kind: 'incident', incidentId } })
+      else setView({ name: 'home' })
+    },
+  }))
 
   function retryBedrock(id) {
     update(id, { status: 'running', scenario: 'normal' })
@@ -125,7 +147,7 @@ export default function Fa2App() {
           investigations={investigations}
           scenario={startScenario}
           onScenarioChange={setStartScenario}
-          onRequest={requestInvestigation}
+          onInvestigate={investigate}
           onOpen={(id) => open(id)}
         />
       ) : (
@@ -173,6 +195,17 @@ export default function Fa2App() {
             />
           )}
         </>
+      )}
+      {lowSeverityAlert && (
+        <BelowThresholdDialog
+          alert={lowSeverityAlert}
+          onCancel={() => setLowSeverityAlert(null)}
+          onConfirm={() => {
+            const alert = lowSeverityAlert
+            setLowSeverityAlert(null)
+            requestInvestigation(alert, { confirmedLowSeverity: true })
+          }}
+        />
       )}
     </main>
   )

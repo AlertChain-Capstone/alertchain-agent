@@ -40,6 +40,9 @@ export default function InvestigationHeader({
             {alert.id} was already investigated ({inv.id}) and closed as {inv.resolution.type}. Showing the existing result.
           </Banner>
         )}
+        {notice?.kind === 'incident' && (
+          <Banner tone="info">Incident report screens are part of FA3 and not built yet – showing the FA2 investigation behind {notice.incidentId}.</Banner>
+        )}
         {notice?.kind === 'existing' && (
           <Banner tone="info">{alert.id} already has an investigation ({inv.id}). Showing it instead of starting a new one.</Banner>
         )}

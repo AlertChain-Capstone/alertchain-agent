@@ -602,3 +602,12 @@
     margin: 12px 0 0;
   }
 }
+
+/* Grid cell that holds one functional area inside the shared shell (App.jsx). */
+.app-area {
+  min-width: 0;
+}
+
+.app-area[hidden] {
+  display: none;
+}

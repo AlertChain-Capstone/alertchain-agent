@@ -91,18 +91,20 @@ export default function AlertDetail({ alert, onBack, onInvestigate, onOpenIncide
       {demoControl}
 
       <div className="fa1-actions">
-        {/* FA2/FA3 can supply these callbacks when the handoff is integrated. */}
-        <button type="button" className="fa1-primary" disabled aria-describedby="alert-handoff-note" onClick={() => onInvestigate?.(alert)}>
+        {/* FA2 supplies these callbacks from App.jsx; without them the buttons stay disabled. */}
+        <button type="button" className="fa1-primary" disabled={!onInvestigate} aria-describedby={onInvestigate ? undefined : 'alert-handoff-note'} onClick={() => onInvestigate?.(alert)}>
           Investigate
         </button>
         {alert.incidentId && (
-          <button type="button" disabled aria-describedby="alert-handoff-note" onClick={() => onOpenIncident?.(alert.incidentId)}>
+          <button type="button" disabled={!onOpenIncident} aria-describedby={onOpenIncident ? undefined : 'alert-handoff-note'} onClick={() => onOpenIncident?.(alert.incidentId)}>
             Open incident {alert.incidentId}
           </button>
         )}
         <button type="button" onClick={onBack}>Back to alerts</button>
       </div>
-      <p id="alert-handoff-note" className="fa1-muted">Investigation and incident actions are unavailable — awaiting FA2/FA3 team integration.</p>
+      {(!onInvestigate || !onOpenIncident) && (
+        <p id="alert-handoff-note" className="fa1-muted">Investigation and incident actions are unavailable — awaiting FA2/FA3 team integration.</p>
+      )}
 
       <div className="fa1-detail-grid">
         <section className="fa1-card" aria-labelledby="normalized-alert-title">

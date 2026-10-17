@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import AlertBadge from '../fa1/AlertBadge'
 import { alerts, alertById, config, formatDateTime } from './fa2Data'
 import StatusChip from './StatusChip'
@@ -9,13 +9,7 @@ const SCENARIOS = {
   cloudtrail: { label: 'CloudTrail query denied', help: 'The first CloudTrail query fails; the failure is recorded and the agent continues with other sources.' },
 }
 
-export default function StartInvestigation({ headingRef, investigations, scenario, onScenarioChange, onRequest, onOpen }) {
-  const [lowSeverityAlert, setLowSeverityAlert] = useState(null)
-
-  function investigate(alert) {
-    if (onRequest(alert) === 'belowThreshold') setLowSeverityAlert(alert)
-  }
-
+export default function StartInvestigation({ headingRef, investigations, scenario, onScenarioChange, onInvestigate, onOpen }) {
   const latestFor = (alertId) => [...investigations].reverse().find((inv) => inv.alertId === alertId)
 
   return (
@@ -55,7 +49,7 @@ export default function StartInvestigation({ headingRef, investigations, scenari
                     <td>{alert.principal}</td>
                     <td><AlertBadge kind="severity" value={alert.severity} /></td>
                     <td>{inv ? <button type="button" className="fa2-link" onClick={() => onOpen(inv.id)}>{inv.id}</button> : <span className="fa1-muted">None</span>} {inv && <StatusChip inv={inv} />}</td>
-                    <td><button type="button" className="fa1-primary" onClick={() => investigate(alert)}>Investigate</button></td>
+                    <td><button type="button" className="fa1-primary" onClick={() => onInvestigate(alert)}>Investigate</button></td>
                   </tr>
                 )
               })}
@@ -87,22 +81,11 @@ export default function StartInvestigation({ headingRef, investigations, scenari
         </div>
       </section>
 
-      {lowSeverityAlert && (
-        <BelowThresholdDialog
-          alert={lowSeverityAlert}
-          onCancel={() => setLowSeverityAlert(null)}
-          onConfirm={() => {
-            const alert = lowSeverityAlert
-            setLowSeverityAlert(null)
-            onRequest(alert, { confirmedLowSeverity: true })
-          }}
-        />
-      )}
     </section>
   )
 }
 
-function BelowThresholdDialog({ alert, onCancel, onConfirm }) {
+export function BelowThresholdDialog({ alert, onCancel, onConfirm }) {
   const ref = useRef(null)
   useEffect(() => {
     const dialog = ref.current
