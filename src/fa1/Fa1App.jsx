@@ -3,6 +3,7 @@ import data from '../mock/fa1.json'
 import MonitoredEventsEditor from './MonitoredEventsEditor'
 import AlertsList from './AlertsList'
 import AlertDetail from './AlertDetail'
+import SecuritySources from './SecuritySources'
 import './fa1.css'
 
 const eventDetails = {
@@ -25,6 +26,51 @@ export default function Fa1App() {
   const [alertPage, setAlertPage] = useState(1)
   const [selectedAlertId, setSelectedAlertId] = useState(null)
   const restoreAlertFocus = useRef(false)
+  const recoveryTimers = useRef(new Map())
+  const [sourceDemo, setSourceDemo] = useState({
+    scenario: 'healthy', states: {}, pending: [], announcement: '',
+  })
+
+  useEffect(() => {
+    const timers = recoveryTimers.current
+    return () => timers.forEach((timer) => clearTimeout(timer))
+  }, [])
+
+  function changeSourceScenario(scenario, label) {
+    recoveryTimers.current.forEach((timer) => clearTimeout(timer))
+    recoveryTimers.current.clear()
+    setMessage('')
+    setSourceDemo({
+      scenario,
+      states: Object.fromEntries(data.sources.map((source) => [source.id, scenario])),
+      pending: [],
+      announcement: `Demo scenario: ${label}. Applied to both sources.`,
+    })
+  }
+
+  function recoverSource(source, state) {
+    if (recoveryTimers.current.has(source.id)) return
+    setMessage('')
+    setSourceDemo((current) => ({
+      ...current,
+      pending: [...current.pending, source.id],
+      announcement: `${source.name}: ${state === 'unconfigured' ? 'configuring' : 'retrying'} in this demo…`,
+    }))
+    const timer = setTimeout(() => {
+      recoveryTimers.current.delete(source.id)
+      setSourceDemo((current) => {
+        const states = { ...current.states, [source.id]: 'healthy' }
+        return {
+          ...current,
+          states,
+          scenario: Object.values(states).every((value) => value === 'healthy') ? 'healthy' : current.scenario,
+          pending: current.pending.filter((id) => id !== source.id),
+          announcement: `${source.name}: simulated ${state === 'unconfigured' ? 'configuration' : 'retry'} succeeded. Source is Healthy. No AWS request was made.`,
+        }
+      })
+    }, 800)
+    recoveryTimers.current.set(source.id, timer)
+  }
 
   useEffect(() => {
     if (view === 'alerts' && restoreAlertFocus.current) {
@@ -115,48 +161,15 @@ export default function Fa1App() {
             />
           ) : (
             <>
-              <div className="fa1-source-grid">
-                {data.sources.map((source) => (
-                  <section className="fa1-card" key={source.id}>
-                    <div className="fa1-card-heading">
-                      <h2>{source.name}</h2>
-                      <span className="fa1-status">{source.status}</span>
-                    </div>
-
-                    <dl className="fa1-stats">
-                      <div>
-                        <dt>Last event received</dt>
-                        <dd>
-                          {new Date(source.lastEventAt).toLocaleTimeString('en-GB', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            timeZone: 'UTC',
-                          })} UTC
-                        </dd>
-                      </div>
-
-                      <div>
-                        <dt>Sample normalized alerts</dt>
-                        <dd>
-                          {data.alerts.filter(
-                            (alert) => alert.source === source.name
-                          ).length}
-                        </dd>
-                      </div>
-                    </dl>
-
-                    <div className="fa1-actions">
-                      <button onClick={() => testConnection(source)}>
-                        Test connection
-                      </button>
-
-                      <button onClick={() => openAlerts(source.name)}>
-                        View recent events
-                      </button>
-                    </div>
-                  </section>
-                ))}
-              </div>
+              <SecuritySources
+                sources={data.sources}
+                alerts={data.alerts}
+                demo={sourceDemo}
+                onScenarioChange={changeSourceScenario}
+                onRecover={recoverSource}
+                onTestConnection={testConnection}
+                onViewRecent={openAlerts}
+              />
 
               <section className="fa1-card">
                 <div className="fa1-card-heading">
