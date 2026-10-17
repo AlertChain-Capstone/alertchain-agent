@@ -7,14 +7,21 @@ export default function MonitoredEventsEditor({
   onClose,
 }) {
   const dialogRef = useRef(null)
+  const saveTimer = useRef(null)
   const [draft, setDraft] = useState([...selected])
   const [eventName, setEventName] = useState('')
   const [error, setError] = useState('')
+  const [simulateFailure, setSimulateFailure] = useState(false)
+  const [saveState, setSaveState] = useState('idle')
+  const saving = saveState === 'saving'
 
   useEffect(() => {
     const dialog = dialogRef.current
     dialog.showModal()
-    return () => dialog.close()
+    return () => {
+      clearTimeout(saveTimer.current)
+      dialog.close()
+    }
   }, [])
 
   function toggleEvent(name) {
@@ -46,8 +53,24 @@ export default function MonitoredEventsEditor({
 
   function saveChanges(event) {
     event.preventDefault()
-    if (draft.length === 0 || error) return
-    onSave(draft)
+    if (draft.length === 0 || error || saveTimer.current !== null) return
+    if (!simulateFailure && saveState !== 'failed') {
+      onSave(draft)
+      return
+    }
+    const fail = simulateFailure && saveState !== 'failed'
+    setSaveState('saving')
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null
+      if (fail) setSaveState('failed')
+      else onSave(draft)
+    }, 800)
+  }
+
+  function cancelChanges() {
+    clearTimeout(saveTimer.current)
+    saveTimer.current = null
+    onClose()
   }
 
   return (
@@ -57,7 +80,7 @@ export default function MonitoredEventsEditor({
       aria-labelledby="events-editor-title"
       onCancel={(event) => {
         event.preventDefault()
-        onClose()
+        cancelChanges()
       }}
     >
       <form onSubmit={saveChanges}>
@@ -69,7 +92,15 @@ export default function MonitoredEventsEditor({
           Only these events create alerts. At least one event is required.
         </p>
 
-        <fieldset className="fa1-event-options">
+        <div className="fa1-save-demo">
+          <label>
+            <input type="checkbox" checked={simulateFailure} disabled={saving} onChange={(event) => setSimulateFailure(event.target.checked)} />
+            Demo: simulate a failed save
+          </label>
+          <p className="fa1-muted">Save will fail once. Retry simulates a successful save.</p>
+        </div>
+
+        <fieldset className="fa1-event-options" disabled={saving}>
           <legend className="fa1-muted">Select events to monitor</legend>
 
           {options.map((name) => (
@@ -91,6 +122,7 @@ export default function MonitoredEventsEditor({
         <div className="fa1-add-event">
           <input
             id="event-name"
+            disabled={saving}
             value={eventName}
             placeholder="For example, StopLogging"
             aria-invalid={Boolean(error)}
@@ -101,7 +133,7 @@ export default function MonitoredEventsEditor({
             }}
           />
 
-          <button type="button" onClick={addEvent}>
+          <button type="button" disabled={saving} onClick={addEvent}>
             Add
           </button>
         </div>
@@ -118,16 +150,23 @@ export default function MonitoredEventsEditor({
           </p>
         )}
 
+        <p className="fa1-save-status" role="status" aria-atomic="true">{saving ? 'Saving monitored events…' : ''}</p>
+        {saveState === 'failed' && (
+          <p className="fa1-error" role="alert">
+            Simulated save failed. Your draft is retained and the saved configuration has not changed. Retry to save successfully, or Cancel to discard the draft.
+          </p>
+        )}
+
         <div className="fa1-actions">
           <button
             type="submit"
             className="fa1-primary"
-            disabled={draft.length === 0 || Boolean(error)}
+            disabled={saving || draft.length === 0 || Boolean(error)}
           >
-            Save changes
+            {saving ? 'Saving…' : saveState === 'failed' ? 'Retry' : 'Save changes'}
           </button>
 
-          <button type="button" onClick={onClose}>
+          <button type="button" onClick={cancelChanges}>
             Cancel
           </button>
         </div>

@@ -340,6 +340,49 @@
   background: rgb(16 24 40 / 50%);
 }
 
+.fa1-save-demo {
+  padding: 12px;
+  border: 1px solid var(--fa1-border);
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.fa1-save-demo label {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.fa1-save-demo input {
+  flex-shrink: 0;
+  margin: 4px 0 0;
+  accent-color: var(--fa1-blue);
+}
+
+.fa1-save-demo p {
+  margin: 6px 0 0;
+  line-height: 1.5;
+}
+
+.fa1-save-status {
+  color: var(--fa1-blue);
+  font-size: 14px;
+}
+
+.fa1-save-status:empty {
+  margin: 0;
+}
+
+.fa1-alert-demo-controls {
+  margin-bottom: 20px;
+}
+
+.fa1-empty p {
+  line-height: 1.5;
+}
+
 .fa1-event-options {
   display: grid;
   gap: 12px;

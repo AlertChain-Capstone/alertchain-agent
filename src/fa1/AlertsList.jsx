@@ -8,7 +8,7 @@ const timeRanges = [
   ['168', 'Last 7 days'],
   ['all', 'All time'],
 ]
-export default function AlertsList({ alerts, filters, setFilters, page, setPage, onOpenAlert }) {
+export default function AlertsList({ alerts, filters, setFilters, page, setPage, onOpenAlert, demoScenario, onDemoChange, onViewSources }) {
   function updateFilter(name, value) {
     setFilters((current) => ({ ...current, [name]: value }))
     setPage(1)
@@ -21,7 +21,8 @@ export default function AlertsList({ alerts, filters, setFilters, page, setPage,
 
   const referenceTime = Date.parse(DEMO_REFERENCE_TIME)
   const query = filters.search.trim().toLowerCase()
-  const filtered = alerts.filter((alert) => {
+  const availableAlerts = demoScenario === 'empty' ? [] : alerts
+  const filtered = availableAlerts.filter((alert) => {
     const occurredAt = Date.parse(alert.occurredAt)
     return (
       [alert.id, alert.eventName, alert.principal].some((value) => value.toLowerCase().includes(query)) &&
@@ -34,7 +35,8 @@ export default function AlertsList({ alerts, filters, setFilters, page, setPage,
   }).sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt))
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const offset = (page - 1) * PAGE_SIZE
+  const currentPage = Math.min(page, pageCount)
+  const offset = (currentPage - 1) * PAGE_SIZE
   const visibleAlerts = filtered.slice(offset, offset + PAGE_SIZE)
   const selectFilters = [
     ['severity', 'Severity', ['High', 'Medium', 'Low']],
@@ -44,6 +46,18 @@ export default function AlertsList({ alerts, filters, setFilters, page, setPage,
 
   return (
     <section aria-label="Normalized alerts">
+      <div className="fa1-scenario-controls fa1-alert-demo-controls">
+        <div className="fa1-filter">
+          <label htmlFor="alerts-demo-scenario">Alerts demo scenario</label>
+          <select id="alerts-demo-scenario" value={demoScenario} aria-describedby="alerts-demo-status" onChange={(event) => onDemoChange(event.target.value)}>
+            <option value="sample">Sample alerts</option>
+            <option value="empty">No alerts available</option>
+          </select>
+        </div>
+        <p id="alerts-demo-status" className="fa1-muted" role="status" aria-atomic="true">
+          {demoScenario === 'empty' ? 'Demo: no alerts have been ingested yet.' : 'Showing fictional sample alerts.'}
+        </p>
+      </div>
       <div className="fa1-filters">
         <div className="fa1-filter fa1-search">
           <label htmlFor="alert-search">Search alerts</label>
@@ -76,7 +90,13 @@ export default function AlertsList({ alerts, filters, setFilters, page, setPage,
         Demo reference time: <time dateTime={DEMO_REFERENCE_TIME}>2026-10-17 16:00:00 UTC</time>
       </p>
 
-      {filtered.length === 0 ? (
+      {availableAlerts.length === 0 ? (
+        <div className="fa1-card fa1-empty">
+          <h2>No alerts available</h2>
+          <p>No alerts have been ingested yet. View security sources to review their configuration and connection status.</p>
+          <button type="button" onClick={onViewSources}>View security sources</button>
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="fa1-card fa1-empty">
           <p role="status">No alerts match your filters</p>
           <button type="button" onClick={clearFilters}>Clear filters</button>
@@ -114,9 +134,9 @@ export default function AlertsList({ alerts, filters, setFilters, page, setPage,
           Showing {filtered.length ? offset + 1 : 0}–{Math.min(offset + PAGE_SIZE, filtered.length)} of {filtered.length} alerts
         </p>
         <nav className="fa1-actions" aria-label="Alerts pagination">
-          <button disabled={page === 1} onClick={() => setPage((current) => current - 1)}>Previous</button>
-          <span className="fa1-muted">Page {page} of {pageCount}</span>
-          <button disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)}>Next</button>
+          <button disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>Previous</button>
+          <span className="fa1-muted">Page {currentPage} of {pageCount}</span>
+          <button disabled={currentPage >= pageCount} onClick={() => setPage(currentPage + 1)}>Next</button>
         </nav>
       </div>
     </section>

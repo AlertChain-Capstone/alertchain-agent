@@ -24,6 +24,7 @@ export default function Fa1App() {
     search: '', severity: '', source: '', status: '', timeRange: '24',
   })
   const [alertPage, setAlertPage] = useState(1)
+  const [alertsDemo, setAlertsDemo] = useState('sample')
   const [selectedAlertId, setSelectedAlertId] = useState(null)
   const restoreAlertFocus = useRef(false)
   const recoveryTimers = useRef(new Map())
@@ -108,7 +109,7 @@ export default function Fa1App() {
     setMonitoredEvents(events)
     setEditorOpen(false)
     setMessage(
-      'Monitored events updated for this demo session. Refreshing resets the sample configuration.'
+      'Monitored events saved successfully for this demo session. Refreshing resets the sample configuration.'
     )
   }
 
@@ -158,6 +159,9 @@ export default function Fa1App() {
               page={alertPage}
               setPage={setAlertPage}
               onOpenAlert={openAlert}
+              demoScenario={alertsDemo}
+              onDemoChange={setAlertsDemo}
+              onViewSources={() => setView('sources')}
             />
           ) : (
             <>
