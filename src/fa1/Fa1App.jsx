@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import data from '../mock/fa1.json'
 import MonitoredEventsEditor from './MonitoredEventsEditor'
 import AlertsList from './AlertsList'
+import AlertDetail from './AlertDetail'
 import './fa1.css'
 
 const eventDetails = {
@@ -22,6 +23,26 @@ export default function Fa1App() {
     search: '', severity: '', source: '', status: '', timeRange: '24',
   })
   const [alertPage, setAlertPage] = useState(1)
+  const [selectedAlertId, setSelectedAlertId] = useState(null)
+  const restoreAlertFocus = useRef(false)
+
+  useEffect(() => {
+    if (view === 'alerts' && restoreAlertFocus.current) {
+      const target = document.getElementById(`open-${selectedAlertId}`) ?? document.getElementById('alerts-heading')
+      target?.focus()
+      restoreAlertFocus.current = false
+    }
+  }, [view, selectedAlertId])
+
+  function openAlert(id) {
+    setSelectedAlertId(id)
+    setView('detail')
+  }
+
+  function backToAlerts() {
+    restoreAlertFocus.current = true
+    setView('alerts')
+  }
 
   function openAlerts(source) {
     if (source) {
@@ -55,131 +76,142 @@ export default function Fa1App() {
           Alerts
         </button>
       </nav>
-      <p className="fa1-breadcrumb">Alerts & Sources / {view === 'sources' ? 'Sources' : 'Alerts'}</p>
-
-      <h1>{view === 'sources' ? 'Security signal sources' : 'Alerts'}</h1>
-
-      <p className="fa1-description">
-        {view === 'sources'
-          ? `AWS sandbox account ${data.accountId} · region ${data.region}`
-          : 'Normalized from GuardDuty findings and monitored CloudTrail events'}
-      </p>
-
-      <p className="fa1-demo">
-        Inception prototype — fictional data and simulated connections
-      </p>
-
-      {message && (
-        <div className="fa1-notice" role="status">
-          {message}
-        </div>
-      )}
-
-      {view === 'alerts' ? (
-        <AlertsList
-          alerts={data.alerts}
-          filters={alertFilters}
-          setFilters={setAlertFilters}
-          page={alertPage}
-          setPage={setAlertPage}
+      {view === 'detail' ? (
+        <AlertDetail
+          key={selectedAlertId}
+          alert={data.alerts.find((alert) => alert.id === selectedAlertId)}
+          onBack={backToAlerts}
         />
       ) : (
         <>
-          <div className="fa1-source-grid">
-            {data.sources.map((source) => (
-              <section className="fa1-card" key={source.id}>
+          <p className="fa1-breadcrumb">Alerts & Sources / {view === 'sources' ? 'Sources' : 'Alerts'}</p>
+
+          <h1 id={view === 'alerts' ? 'alerts-heading' : undefined} tabIndex={-1}>{view === 'sources' ? 'Security signal sources' : 'Alerts'}</h1>
+
+          <p className="fa1-description">
+            {view === 'sources'
+              ? `AWS sandbox account ${data.accountId} · region ${data.region}`
+              : 'Normalized from GuardDuty findings and monitored CloudTrail events'}
+          </p>
+
+          <p className="fa1-demo">
+            Inception prototype — fictional data and simulated connections
+          </p>
+
+          {message && (
+            <div className="fa1-notice" role="status">
+              {message}
+            </div>
+          )}
+
+          {view === 'alerts' ? (
+            <AlertsList
+              alerts={data.alerts}
+              filters={alertFilters}
+              setFilters={setAlertFilters}
+              page={alertPage}
+              setPage={setAlertPage}
+              onOpenAlert={openAlert}
+            />
+          ) : (
+            <>
+              <div className="fa1-source-grid">
+                {data.sources.map((source) => (
+                  <section className="fa1-card" key={source.id}>
+                    <div className="fa1-card-heading">
+                      <h2>{source.name}</h2>
+                      <span className="fa1-status">{source.status}</span>
+                    </div>
+
+                    <dl className="fa1-stats">
+                      <div>
+                        <dt>Last event received</dt>
+                        <dd>
+                          {new Date(source.lastEventAt).toLocaleTimeString('en-GB', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            timeZone: 'UTC',
+                          })} UTC
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt>Sample normalized alerts</dt>
+                        <dd>
+                          {data.alerts.filter(
+                            (alert) => alert.source === source.name
+                          ).length}
+                        </dd>
+                      </div>
+                    </dl>
+
+                    <div className="fa1-actions">
+                      <button onClick={() => testConnection(source)}>
+                        Test connection
+                      </button>
+
+                      <button onClick={() => openAlerts(source.name)}>
+                        View recent events
+                      </button>
+                    </div>
+                  </section>
+                ))}
+              </div>
+
+              <section className="fa1-card">
                 <div className="fa1-card-heading">
-                  <h2>{source.name}</h2>
-                  <span className="fa1-status">{source.status}</span>
+                  <h2>Monitored CloudTrail events</h2>
+                  <span className="fa1-muted">
+                    {monitoredEvents.length} events · only these create alerts
+                  </span>
                 </div>
 
-                <dl className="fa1-stats">
-                  <div>
-                    <dt>Last event received</dt>
-                    <dd>
-                      {new Date(source.lastEventAt).toLocaleTimeString('en-GB', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        timeZone: 'UTC',
-                      })} UTC
-                    </dd>
-                  </div>
+                <div className="fa1-table-wrapper">
+                  <table className="fa1-table">
+                    <thead>
+                      <tr>
+                        <th>Event name</th>
+                        <th>Service</th>
+                        <th>Why we watch it</th>
+                      </tr>
+                    </thead>
 
-                  <div>
-                    <dt>Sample normalized alerts</dt>
-                    <dd>
-                      {data.alerts.filter(
-                        (alert) => alert.source === source.name
-                      ).length}
-                    </dd>
-                  </div>
-                </dl>
-
-                <div className="fa1-actions">
-                  <button onClick={() => testConnection(source)}>
-                    Test connection
-                  </button>
-
-                  <button onClick={() => openAlerts(source.name)}>
-                    View recent events
-                  </button>
+                    <tbody>
+                      {monitoredEvents.map((eventName) => (
+                        <tr key={eventName}>
+                          <td>
+                            {eventName === 'ConsoleLogin'
+                              ? 'ConsoleLogin (failed)'
+                              : eventName}
+                          </td>
+                          <td>{eventDetails[eventName]?.[0] ?? 'Other'}</td>
+                          <td>{eventDetails[eventName]?.[1] ?? 'Monitored activity'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
+
+                <button
+                  className="fa1-primary"
+                  onClick={() => setEditorOpen(true)}
+                >
+                  Edit monitored events
+                </button>
               </section>
-            ))}
-          </div>
+            </>
+          )}
+            </>
+          )}
 
-          <section className="fa1-card">
-            <div className="fa1-card-heading">
-              <h2>Monitored CloudTrail events</h2>
-              <span className="fa1-muted">
-                {monitoredEvents.length} events · only these create alerts
-              </span>
-            </div>
-
-            <div className="fa1-table-wrapper">
-              <table className="fa1-table">
-                <thead>
-                  <tr>
-                    <th>Event name</th>
-                    <th>Service</th>
-                    <th>Why we watch it</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {monitoredEvents.map((eventName) => (
-                    <tr key={eventName}>
-                      <td>
-                        {eventName === 'ConsoleLogin'
-                          ? 'ConsoleLogin (failed)'
-                          : eventName}
-                      </td>
-                      <td>{eventDetails[eventName]?.[0] ?? 'Other'}</td>
-                      <td>{eventDetails[eventName]?.[1] ?? 'Monitored activity'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <button
-              className="fa1-primary"
-              onClick={() => setEditorOpen(true)}
-            >
-              Edit monitored events
-            </button>
-          </section>
-        </>
-      )}
-
-      {editorOpen && (
-        <MonitoredEventsEditor
-          selected={monitoredEvents}
-          options={Object.keys(eventDetails)}
-          onClose={() => setEditorOpen(false)}
-          onSave={saveMonitoredEvents}
-        />
-      )}
-    </main>
-  )
-}
+          {editorOpen && (
+            <MonitoredEventsEditor
+              selected={monitoredEvents}
+              options={Object.keys(eventDetails)}
+              onClose={() => setEditorOpen(false)}
+              onSave={saveMonitoredEvents}
+            />
+          )}
+        </main>
+      )
+    }

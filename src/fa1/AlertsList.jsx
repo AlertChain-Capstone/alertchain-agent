@@ -1,3 +1,5 @@
+import AlertBadge from './AlertBadge'
+
 const DEMO_REFERENCE_TIME = '2026-10-17T16:00:00Z'
 const PAGE_SIZE = 6
 const timeRanges = [
@@ -6,16 +8,7 @@ const timeRanges = [
   ['168', 'Last 7 days'],
   ['all', 'All time'],
 ]
-const severityColors = { High: 'danger', Medium: 'warning', Low: 'neutral' }
-const statusColors = {
-  New: 'info',
-  'Under investigation': 'warning',
-  'Closed · Benign': 'neutral',
-  'Closed · False positive': 'neutral',
-  Resolved: 'success',
-}
-
-export default function AlertsList({ alerts, filters, setFilters, page, setPage }) {
+export default function AlertsList({ alerts, filters, setFilters, page, setPage, onOpenAlert }) {
   function updateFilter(name, value) {
     setFilters((current) => ({ ...current, [name]: value }))
     setPage(1)
@@ -101,14 +94,14 @@ export default function AlertsList({ alerts, filters, setFilters, page, setPage 
             <tbody>
               {visibleAlerts.map((alert) => (
                 <tr key={alert.id}>
-                  <td className="fa1-alert-id">{alert.id}</td>
+                  <td><button type="button" className="fa1-alert-id" id={`open-${alert.id}`} onClick={() => onOpenAlert(alert.id)}>{alert.id}</button></td>
                   <td><time dateTime={alert.occurredAt}>{new Date(alert.occurredAt).toISOString().slice(0, 16).replace('T', ' ')}</time></td>
                   <td>{alert.source}</td>
                   <td>{alert.eventName === 'ConsoleLogin' ? 'ConsoleLogin (failed)' : alert.eventName}</td>
                   <td>{alert.principal}</td>
                   <td>{alert.resource}</td>
-                  <td><span className={`fa1-badge fa1-badge-${severityColors[alert.severity] ?? 'neutral'}`}>{alert.severity}</span></td>
-                  <td><span className={`fa1-badge fa1-badge-${statusColors[alert.status] ?? 'neutral'}`}>{alert.status}</span></td>
+                  <td><AlertBadge kind="severity" value={alert.severity} /></td>
+                  <td><AlertBadge kind="status" value={alert.status} /></td>
                 </tr>
               ))}
             </tbody>
