@@ -1,0 +1,261 @@
+.fa1-page {
+  --fa1-text: #1d2939;
+  --fa1-muted: #667085;
+  --fa1-border: #d0d5dd;
+  --fa1-blue: #2f5d8c;
+
+  min-height: 100vh;
+  padding: 28px 40px;
+  background: #f9fafb;
+  color: var(--fa1-text);
+  font-family: Inter, Arial, sans-serif;
+  box-sizing: border-box;
+}
+
+.fa1-page *,
+.fa1-page *::before,
+.fa1-page *::after {
+  box-sizing: border-box;
+}
+
+.fa1-page h1 {
+  margin: 20px 0;
+  font-size: 28px;
+}
+
+.fa1-page h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.fa1-breadcrumb {
+  margin: 0;
+  color: var(--fa1-muted);
+  font-size: 13px;
+}
+
+.fa1-description {
+  color: #475467;
+  font-size: 15px;
+}
+
+.fa1-demo,
+.fa1-muted {
+  color: var(--fa1-muted);
+  font-size: 13px;
+}
+
+.fa1-demo {
+  margin-bottom: 24px;
+}
+
+.fa1-source-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.fa1-card {
+  padding: 20px;
+  border: 1px solid var(--fa1-border);
+  border-radius: 12px;
+  background: white;
+}
+
+.fa1-card-heading,
+.fa1-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.fa1-status {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #d1fadf;
+  color: #027a48;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.fa1-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  margin: 20px 0;
+}
+
+.fa1-stats dt {
+  color: var(--fa1-muted);
+  font-size: 12px;
+}
+
+.fa1-stats dd {
+  margin: 6px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.fa1-page button {
+  padding: 10px 16px;
+  border: 1px solid var(--fa1-border);
+  border-radius: 8px;
+  background: white;
+  color: var(--fa1-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fa1-page button:hover:not(:disabled) {
+  background: #f2f4f7;
+}
+
+.fa1-page button:focus-visible {
+  outline: 3px solid #84adcf;
+  outline-offset: 3px;
+}
+
+.fa1-page button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fa1-page .fa1-primary {
+  background: var(--fa1-blue);
+  border-color: var(--fa1-blue);
+  color: white;
+}
+
+.fa1-page .fa1-primary:hover:not(:disabled) {
+  background: #24496e;
+  border-color: #24496e;
+}
+
+.fa1-dialog {
+  width: min(560px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  overflow-y: auto;
+  border: 1px solid var(--fa1-border);
+  border-radius: 12px;
+  background: white;
+  color: var(--fa1-text);
+  box-shadow: 0 24px 48px rgb(16 24 40 / 20%);
+}
+
+.fa1-dialog::backdrop {
+  background: rgb(16 24 40 / 50%);
+}
+
+.fa1-event-options {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px solid var(--fa1-border);
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.fa1-event-options legend {
+  padding: 0 6px;
+}
+
+.fa1-event-options label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.fa1-event-options input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--fa1-blue);
+}
+
+.fa1-add-event {
+  display: flex;
+  gap: 10px;
+  margin: 8px 0 20px;
+}
+
+.fa1-add-event input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--fa1-border);
+  border-radius: 8px;
+  background: white;
+  color: var(--fa1-text);
+  font-size: 14px;
+}
+
+.fa1-add-event input::placeholder {
+  color: var(--fa1-muted);
+}
+
+.fa1-dialog input:focus-visible {
+  outline: 3px solid #84adcf;
+  outline-offset: 3px;
+}
+
+.fa1-add-event input[aria-invalid='true'] {
+  border-color: #b42318;
+}
+
+.fa1-error {
+  margin: 0 0 20px;
+  color: #b42318;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.fa1-notice {
+  padding: 14px 18px;
+  margin-bottom: 24px;
+  border: 1px solid #b2ddff;
+  border-radius: 8px;
+  background: #eff8ff;
+  color: #1849a9;
+}
+
+.fa1-table-wrapper {
+  overflow-x: auto;
+  margin: 16px 0;
+}
+
+.fa1-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+}
+
+.fa1-table th {
+  background: #f9fafb;
+  color: var(--fa1-muted);
+}
+
+.fa1-table th,
+.fa1-table td {
+  padding: 12px 8px;
+  border-bottom: 1px solid #f2f4f7;
+}
+
+@media (max-width: 800px) {
+  .fa1-page {
+    padding: 24px 16px;
+  }
+
+  .fa1-source-grid {
+    grid-template-columns: 1fr;
+  }
+}

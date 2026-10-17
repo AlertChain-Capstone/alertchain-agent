@@ -1,0 +1,76 @@
+{
+  "accountId": "123456789012",
+  "region": "us-east-1",
+  "sources": [
+    {
+      "id": "guardduty",
+      "name": "Amazon GuardDuty",
+      "status": "Connected",
+      "lastEventAt": "2026-10-17T15:55:00Z"
+    },
+    {
+      "id": "cloudtrail",
+      "name": "AWS CloudTrail",
+      "status": "Connected",
+      "lastEventAt": "2026-10-17T15:58:00Z"
+    }
+  ],
+  "monitoredEvents": [
+    "CreateAccessKey",
+    "StopLogging",
+    "DeleteTrail",
+    "AttachUserPolicy",
+    "PutBucketPolicy",
+    "ConsoleLogin"
+  ],
+  "alerts": [
+    {
+      "id": "ALT-001",
+      "title": "Suspicious API activity",
+      "source": "Amazon GuardDuty",
+      "severity": "High",
+      "status": "New",
+      "occurredAt": "2026-10-17T15:55:00Z",
+      "resource": "i-0123456789abcdef0",
+      "summary": "Sample finding indicating unusual API activity.",
+      "incidentId": null,
+      "rawEvent": {
+        "id": "sample-finding-001",
+        "type": "UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS",
+        "severity": 8
+      }
+    },
+    {
+      "id": "ALT-002",
+      "title": "CloudTrail logging stopped",
+      "source": "AWS CloudTrail",
+      "severity": "High",
+      "status": "Under investigation",
+      "occurredAt": "2026-10-17T15:40:00Z",
+      "resource": "sample-security-trail",
+      "summary": "A StopLogging event was detected for a monitored trail.",
+      "incidentId": "INC-001",
+      "rawEvent": {
+        "eventName": "StopLogging",
+        "eventSource": "cloudtrail.amazonaws.com",
+        "awsRegion": "us-east-1"
+      }
+    },
+    {
+      "id": "ALT-003",
+      "title": "New access key created",
+      "source": "AWS CloudTrail",
+      "severity": "Medium",
+      "status": "New",
+      "occurredAt": "2026-10-17T14:30:00Z",
+      "resource": "sample-user",
+      "summary": "A CreateAccessKey event was detected for a monitored user.",
+      "incidentId": null,
+      "rawEvent": {
+        "eventName": "CreateAccessKey",
+        "eventSource": "iam.amazonaws.com",
+        "awsRegion": "us-east-1"
+      }
+    }
+  ]
+}
