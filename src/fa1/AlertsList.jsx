@@ -1,0 +1,131 @@
+const DEMO_REFERENCE_TIME = '2026-10-17T16:00:00Z'
+const PAGE_SIZE = 6
+const timeRanges = [
+  ['24', 'Last 24 hours'],
+  ['1', 'Last hour'],
+  ['168', 'Last 7 days'],
+  ['all', 'All time'],
+]
+const severityColors = { High: 'danger', Medium: 'warning', Low: 'neutral' }
+const statusColors = {
+  New: 'info',
+  'Under investigation': 'warning',
+  'Closed · Benign': 'neutral',
+  'Closed · False positive': 'neutral',
+  Resolved: 'success',
+}
+
+export default function AlertsList({ alerts, filters, setFilters, page, setPage }) {
+  function updateFilter(name, value) {
+    setFilters((current) => ({ ...current, [name]: value }))
+    setPage(1)
+  }
+
+  function clearFilters() {
+    setFilters({ search: '', severity: '', source: '', status: '', timeRange: '24' })
+    setPage(1)
+  }
+
+  const referenceTime = Date.parse(DEMO_REFERENCE_TIME)
+  const query = filters.search.trim().toLowerCase()
+  const filtered = alerts.filter((alert) => {
+    const occurredAt = Date.parse(alert.occurredAt)
+    return (
+      [alert.id, alert.eventName, alert.principal].some((value) => value.toLowerCase().includes(query)) &&
+      (!filters.severity || alert.severity === filters.severity) &&
+      (!filters.source || alert.source === filters.source) &&
+      (!filters.status || alert.status === filters.status) &&
+      occurredAt <= referenceTime &&
+      (filters.timeRange === 'all' || occurredAt >= referenceTime - Number(filters.timeRange) * 3600000)
+    )
+  }).sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt))
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const offset = (page - 1) * PAGE_SIZE
+  const visibleAlerts = filtered.slice(offset, offset + PAGE_SIZE)
+  const selectFilters = [
+    ['severity', 'Severity', ['High', 'Medium', 'Low']],
+    ['source', 'Source', [...new Set(alerts.map((alert) => alert.source))]],
+    ['status', 'Status', [...new Set(alerts.map((alert) => alert.status))]],
+  ]
+
+  return (
+    <section aria-label="Normalized alerts">
+      <div className="fa1-filters">
+        <div className="fa1-filter fa1-search">
+          <label htmlFor="alert-search">Search alerts</label>
+          <input
+            id="alert-search"
+            type="search"
+            placeholder="Search ID, event or principal…"
+            value={filters.search}
+            onChange={(event) => updateFilter('search', event.target.value)}
+          />
+        </div>
+        {selectFilters.map(([name, label, options]) => (
+          <div className="fa1-filter" key={name}>
+            <label htmlFor={`alert-${name}`}>{label}</label>
+            <select id={`alert-${name}`} value={filters[name]} onChange={(event) => updateFilter(name, event.target.value)}>
+              <option value="">All</option>
+              {options.map((option) => <option key={option}>{option}</option>)}
+            </select>
+          </div>
+        ))}
+        <div className="fa1-filter">
+          <label htmlFor="alert-time-range">Time range</label>
+          <select id="alert-time-range" aria-describedby="alert-demo-time" value={filters.timeRange} onChange={(event) => updateFilter('timeRange', event.target.value)}>
+            {timeRanges.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </div>
+        <button type="button" onClick={clearFilters}>Clear filters</button>
+      </div>
+      <p id="alert-demo-time" className="fa1-muted">
+        Demo reference time: <time dateTime={DEMO_REFERENCE_TIME}>2026-10-17 16:00:00 UTC</time>
+      </p>
+
+      {filtered.length === 0 ? (
+        <div className="fa1-card fa1-empty">
+          <p role="status">No alerts match your filters</p>
+          <button type="button" onClick={clearFilters}>Clear filters</button>
+        </div>
+      ) : (
+        <div className="fa1-table-wrapper fa1-alerts-table-wrapper" role="region" aria-label="Alerts table" tabIndex={0}>
+          <table className="fa1-table fa1-alerts-table" aria-label="Normalized alerts">
+            <thead>
+              <tr>
+                {['ID', 'Time (UTC)', 'Source', 'Event', 'Principal', 'Resource', 'Severity', 'Status'].map((heading) => (
+                  <th key={heading} scope="col">{heading}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleAlerts.map((alert) => (
+                <tr key={alert.id}>
+                  <td className="fa1-alert-id">{alert.id}</td>
+                  <td><time dateTime={alert.occurredAt}>{new Date(alert.occurredAt).toISOString().slice(0, 16).replace('T', ' ')}</time></td>
+                  <td>{alert.source}</td>
+                  <td>{alert.eventName === 'ConsoleLogin' ? 'ConsoleLogin (failed)' : alert.eventName}</td>
+                  <td>{alert.principal}</td>
+                  <td>{alert.resource}</td>
+                  <td><span className={`fa1-badge fa1-badge-${severityColors[alert.severity] ?? 'neutral'}`}>{alert.severity}</span></td>
+                  <td><span className={`fa1-badge fa1-badge-${statusColors[alert.status] ?? 'neutral'}`}>{alert.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="fa1-pagination">
+        <p className="fa1-muted" role="status">
+          Showing {filtered.length ? offset + 1 : 0}–{Math.min(offset + PAGE_SIZE, filtered.length)} of {filtered.length} alerts
+        </p>
+        <nav className="fa1-actions" aria-label="Alerts pagination">
+          <button disabled={page === 1} onClick={() => setPage((current) => current - 1)}>Previous</button>
+          <span className="fa1-muted">Page {page} of {pageCount}</span>
+          <button disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)}>Next</button>
+        </nav>
+      </div>
+    </section>
+  )
+}
