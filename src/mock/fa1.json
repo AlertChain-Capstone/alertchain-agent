@@ -1,0 +1,332 @@
+{
+  "accountId": "123456789012",
+  "region": "us-east-1",
+  "sources": [
+    {
+      "id": "guardduty",
+      "name": "Amazon GuardDuty",
+      "status": "Connected",
+      "lastEventAt": "2026-10-17T15:55:00Z"
+    },
+    {
+      "id": "cloudtrail",
+      "name": "AWS CloudTrail",
+      "status": "Connected",
+      "lastEventAt": "2026-10-17T15:58:00Z"
+    }
+  ],
+  "monitoredEvents": [
+    "CreateAccessKey",
+    "StopLogging",
+    "DeleteTrail",
+    "AttachUserPolicy",
+    "PutBucketPolicy",
+    "ConsoleLogin"
+  ],
+  "alerts": [
+    {
+      "id": "ALT-001",
+      "title": "Suspicious API activity",
+      "source": "Amazon GuardDuty",
+      "severity": "High",
+      "status": "New",
+      "occurredAt": "2026-10-17T15:55:00Z",
+      "resource": "i-0123456789abcdef0",
+      "summary": "Sample finding indicating unusual API activity.",
+      "incidentId": null,
+      "rawEvent": {
+        "id": "sample-finding-001",
+        "type": "UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS",
+        "severity": 8,
+        "region": "us-east-1",
+        "updatedAt": "2026-10-17T15:55:00Z",
+        "description": "Sample finding indicating unusual API activity.",
+        "resource": {
+          "resourceType": "Instance",
+          "accessKeyDetails": {
+            "userName": "sample-instance-role",
+            "accessKeyId": "DEMO-ACCESS-KEY-001"
+          },
+          "instanceDetails": {
+            "instanceId": "i-0123456789abcdef0"
+          }
+        },
+        "service": {
+          "action": {
+            "actionType": "AWS_API_CALL",
+            "awsApiCallAction": {
+              "remoteIpDetails": {
+                "ipAddressV4": "198.51.100.12"
+              }
+            }
+          }
+        }
+      },
+      "eventName": "UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS",
+      "principal": "sample-instance-role",
+      "region": "us-east-1",
+      "accessKeyId": "DEMO-ACCESS-KEY-001",
+      "sourceIp": "198.51.100.12"
+    },
+    {
+      "id": "ALT-002",
+      "title": "CloudTrail logging stopped",
+      "source": "AWS CloudTrail",
+      "severity": "High",
+      "status": "Under investigation",
+      "occurredAt": "2026-10-17T15:40:00Z",
+      "resource": "sample-security-trail",
+      "summary": "A StopLogging event was detected for a monitored trail.",
+      "incidentId": "INC-001",
+      "rawEvent": {
+        "eventName": "StopLogging",
+        "eventSource": "cloudtrail.amazonaws.com",
+        "awsRegion": "us-east-1",
+        "eventTime": "2026-10-17T15:40:00Z",
+        "userIdentity": {
+          "type": "IAMUser",
+          "userName": "dev-ci-user",
+          "accessKeyId": "DEMO-ACCESS-KEY-002"
+        },
+        "sourceIPAddress": "203.0.113.45",
+        "resources": [
+          {
+            "resourceName": "sample-security-trail"
+          }
+        ]
+      },
+      "eventName": "StopLogging",
+      "principal": "dev-ci-user",
+      "region": "us-east-1",
+      "accessKeyId": "DEMO-ACCESS-KEY-002",
+      "sourceIp": "203.0.113.45"
+    },
+    {
+      "id": "ALT-003",
+      "title": "New access key created",
+      "source": "AWS CloudTrail",
+      "severity": "Medium",
+      "status": "New",
+      "occurredAt": "2026-10-17T14:30:00Z",
+      "resource": "sample-user",
+      "summary": "A CreateAccessKey event was detected for a monitored user.",
+      "incidentId": null,
+      "rawEvent": {
+        "eventName": "CreateAccessKey",
+        "eventSource": "iam.amazonaws.com",
+        "awsRegion": "us-east-1",
+        "eventTime": "2026-10-17T14:30:00Z",
+        "userIdentity": {
+          "type": "IAMUser",
+          "userName": "sample-user",
+          "accessKeyId": "DEMO-ACCESS-KEY-003"
+        },
+        "sourceIPAddress": "203.0.113.45",
+        "resources": [
+          {
+            "resourceName": "sample-user"
+          }
+        ]
+      },
+      "eventName": "CreateAccessKey",
+      "principal": "sample-user",
+      "region": "us-east-1",
+      "accessKeyId": "DEMO-ACCESS-KEY-003",
+      "sourceIp": "203.0.113.45"
+    },
+    {
+      "id": "ALT-004",
+      "title": "Failed console sign-in",
+      "source": "AWS CloudTrail",
+      "eventName": "ConsoleLogin",
+      "principal": "analyst-01",
+      "severity": "Low",
+      "status": "Closed · Benign",
+      "occurredAt": "2026-10-17T13:10:00Z",
+      "resource": "AWS console",
+      "summary": "Fictional failed console sign-in during a training exercise.",
+      "incidentId": null,
+      "rawEvent": {
+        "eventName": "ConsoleLogin",
+        "eventSource": "signin.amazonaws.com",
+        "responseElements": {
+          "ConsoleLogin": "Failure"
+        },
+        "eventTime": "2026-10-17T13:10:00Z",
+        "awsRegion": "us-east-1",
+        "userIdentity": {
+          "type": "IAMUser",
+          "userName": "analyst-01"
+        },
+        "resources": [
+          {
+            "resourceName": "AWS console"
+          }
+        ]
+      },
+      "region": "us-east-1"
+    },
+    {
+      "id": "ALT-005",
+      "title": "Unusual permission discovery",
+      "source": "Amazon GuardDuty",
+      "eventName": "Recon:IAMUser/UserPermissions",
+      "principal": "build-bot",
+      "severity": "Medium",
+      "status": "Closed · False positive",
+      "occurredAt": "2026-10-17T11:47:00Z",
+      "resource": "IAM user build-bot",
+      "summary": "Fictional discovery finding from an approved build job.",
+      "incidentId": null,
+      "rawEvent": {
+        "id": "sample-finding-005",
+        "type": "Recon:IAMUser/UserPermissions",
+        "severity": 5,
+        "region": "us-east-1",
+        "updatedAt": "2026-10-17T11:47:00Z",
+        "description": "Fictional discovery finding from an approved build job.",
+        "resource": {
+          "resourceType": "AccessKey",
+          "accessKeyDetails": {
+            "userName": "build-bot"
+          },
+          "resourceName": "IAM user build-bot"
+        }
+      },
+      "region": "us-east-1"
+    },
+    {
+      "id": "ALT-006",
+      "title": "Bucket policy changed",
+      "source": "AWS CloudTrail",
+      "eventName": "PutBucketPolicy",
+      "principal": "storage-admin",
+      "severity": "High",
+      "status": "New",
+      "occurredAt": "2026-10-17T10:05:00Z",
+      "resource": "sample-audit-bucket",
+      "summary": "Fictional policy change in the sandbox account.",
+      "incidentId": null,
+      "rawEvent": {
+        "eventName": "PutBucketPolicy",
+        "eventSource": "s3.amazonaws.com",
+        "eventTime": "2026-10-17T10:05:00Z",
+        "awsRegion": "us-east-1",
+        "userIdentity": {
+          "type": "IAMUser",
+          "userName": "storage-admin"
+        },
+        "sourceIPAddress": "198.51.100.24",
+        "resources": [
+          {
+            "resourceName": "sample-audit-bucket"
+          }
+        ]
+      },
+      "region": "us-east-1",
+      "sourceIp": "198.51.100.24"
+    },
+    {
+      "id": "ALT-007",
+      "title": "Unusual instance network activity",
+      "source": "Amazon GuardDuty",
+      "eventName": "UnauthorizedAccess:EC2/SSHBruteForce",
+      "principal": "sample-web-role",
+      "severity": "Low",
+      "status": "Resolved",
+      "occurredAt": "2026-10-17T08:20:00Z",
+      "resource": "i-0abcdef0123456789",
+      "summary": "Fictional network finding resolved during a sandbox exercise.",
+      "incidentId": null,
+      "rawEvent": null,
+      "region": "us-east-1"
+    },
+    {
+      "id": "ALT-008",
+      "title": "User policy attached",
+      "source": "AWS CloudTrail",
+      "eventName": "AttachUserPolicy",
+      "principal": "dev-ci-user",
+      "severity": "Medium",
+      "status": "Under investigation",
+      "occurredAt": "2026-10-16T17:00:00Z",
+      "resource": "IAM user sample-deployer",
+      "summary": "Fictional policy attachment awaiting review.",
+      "incidentId": "INC-002",
+      "rawEvent": {
+        "eventName": "AttachUserPolicy",
+        "eventSource": "iam.amazonaws.com",
+        "eventTime": "2026-10-16T17:00:00Z",
+        "awsRegion": "us-east-1",
+        "userIdentity": {
+          "type": "IAMUser",
+          "userName": "dev-ci-user"
+        },
+        "resources": [
+          {
+            "resourceName": "IAM user sample-deployer"
+          }
+        ]
+      },
+      "region": "us-east-1"
+    },
+    {
+      "id": "ALT-009",
+      "title": "Audit trail deleted",
+      "source": "AWS CloudTrail",
+      "eventName": "DeleteTrail",
+      "principal": "sandbox-admin",
+      "severity": "High",
+      "status": "Resolved",
+      "occurredAt": "2026-10-15T16:00:00Z",
+      "resource": "sample-retired-trail",
+      "summary": "Fictional retired trail removed during maintenance.",
+      "incidentId": null,
+      "rawEvent": {
+        "eventName": "DeleteTrail",
+        "eventSource": "cloudtrail.amazonaws.com",
+        "eventTime": "2026-10-15T16:00:00Z",
+        "awsRegion": "us-east-1",
+        "userIdentity": {
+          "type": "IAMUser",
+          "userName": "sandbox-admin"
+        },
+        "resources": [
+          {
+            "resourceName": "sample-retired-trail"
+          }
+        ]
+      },
+      "region": "us-east-1"
+    },
+    {
+      "id": "ALT-010",
+      "title": "Historical permission discovery",
+      "source": "Amazon GuardDuty",
+      "eventName": "Recon:IAMUser/UserPermissions",
+      "principal": "legacy-build-bot",
+      "severity": "Medium",
+      "status": "Closed · Benign",
+      "occurredAt": "2026-10-09T16:00:00Z",
+      "resource": "IAM user legacy-build-bot",
+      "summary": "Fictional historical discovery finding from approved automation.",
+      "incidentId": null,
+      "rawEvent": {
+        "id": "sample-finding-010",
+        "type": "Recon:IAMUser/UserPermissions",
+        "severity": 4,
+        "region": "us-east-1",
+        "updatedAt": "2026-10-09T16:00:00Z",
+        "description": "Fictional historical discovery finding from approved automation.",
+        "resource": {
+          "resourceType": "AccessKey",
+          "accessKeyDetails": {
+            "userName": "legacy-build-bot"
+          },
+          "resourceName": "IAM user legacy-build-bot"
+        }
+      },
+      "region": "us-east-1"
+    }
+  ]
+}
