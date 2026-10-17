@@ -1,11 +1,34 @@
 import avatar from '../assets/fa1-avatar.svg'
 import './fa1.css'
 
-// Temporary FA1 shell; replace this wrapper with the team's shared layout later.
-export default function Fa1Layout({ children }) {
+const AREAS = {
+  fa1: { title: 'Alerts & Sources', area: 'FA1', href: '#/' },
+  fa2: { title: 'Investigations & Incidents', area: 'FA2 / FA3', href: '#/investigations' },
+}
+
+function AreaLink({ id, activeArea }) {
+  const { title, area, href } = AREAS[id]
+  if (id === activeArea) {
+    return (
+      <div className="fa1-main-nav-item fa1-main-nav-active" aria-current="true">
+        <span className="fa1-main-nav-title">{title}</span>
+        <span className="fa1-main-nav-area">{area}</span>
+      </div>
+    )
+  }
+  return (
+    <a className="fa1-main-nav-item fa1-main-nav-link" href={href}>
+      <span className="fa1-main-nav-title">{title}</span>
+      <span className="fa1-main-nav-area">{area}</span>
+    </a>
+  )
+}
+
+// Shared shell for the team's functional areas. FA3's Dashboard is not built yet.
+export default function Fa1Layout({ children, activeArea = 'fa1' }) {
   return (
     <div className="fa1-shell">
-      <a className="fa1-skip-link" href="#fa1-content">Skip to content</a>
+      <a className="fa1-skip-link" href={activeArea === 'fa2' ? '#fa2-content' : '#fa1-content'}>Skip to content</a>
       <header className="fa1-header">
         <div className="fa1-brand">
           <span className="fa1-logo-mark" aria-hidden="true" />
@@ -27,19 +50,8 @@ export default function Fa1Layout({ children }) {
                   <span className="fa1-integration-note" id="dashboard-integration">Unavailable — awaiting team integration</span>
                 </button>
               </li>
-              <li>
-                <div className="fa1-main-nav-item fa1-main-nav-active" aria-current="true">
-                  <span className="fa1-main-nav-title">Alerts &amp; Sources</span>
-                  <span className="fa1-main-nav-area">FA1</span>
-                </div>
-              </li>
-              <li>
-                <button className="fa1-main-nav-item" type="button" aria-disabled="true" aria-describedby="investigations-integration">
-                  <span className="fa1-main-nav-title">Investigations &amp; Incidents</span>
-                  <span className="fa1-main-nav-area">FA2 / FA3</span>
-                  <span className="fa1-integration-note" id="investigations-integration">Unavailable — awaiting team integration</span>
-                </button>
-              </li>
+              <li><AreaLink id="fa1" activeArea={activeArea} /></li>
+              <li><AreaLink id="fa2" activeArea={activeArea} /></li>
             </ul>
           </nav>
         </aside>

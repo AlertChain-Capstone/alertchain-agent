@@ -21,7 +21,7 @@ The repository currently includes the FA1 frontend prototype using fictional moc
 
 Implemented FA1 screens cover security signal sources, monitored event configuration, normalized alert browsing, and alert details. A reusable temporary layout provides the AlertChain Agent header and sidebar.
 
-Investigation, incident dashboard, and Ask-the-Agent views remain planned work. Live AWS ingestion, AI investigations, and backend integration are also planned.
+The FA2 investigation prototype (Investigation View, Reasoning Trace, Attack Chain) is integrated through the shared sidebar and the alert-detail **Investigate** and **Open incident** buttons. The incident dashboard and Ask-the-Agent views (FA3) remain planned work. Live AWS ingestion, AI investigations, and backend integration are also planned.
 
 ## Technology
 
@@ -88,12 +88,59 @@ For each Alerts example below, first click **Alerts**, choose **Alerts demo scen
 
 Source scenarios apply to both cards; recoveries operate independently. Switching scenarios cancels pending recoveries. Changing alert filters resets pagination to page one. Changing demo scenarios does not reset saved monitored selections or alert filters. A source card's **View recent events** action selects that source and resets the other alert filters. The failed-save switch resets when the editor closes, and the unavailable-alert simulation resets when details are reopened.
 
+## FA2 Investigation Prototype
+
+FA2 (Agentic Reasoning & Correlation, owner: Harneet Kaur) lives in `src/fa2/` with fixtures in `src/mock/fa2.json`. It reads the FA1 alert fixtures read-only.
+
+Open it with **Investigations & Incidents** in the sidebar (or `http://localhost:5173/#/investigations`); **Alerts & Sources** goes back to FA1. From an FA1 alert's details, **Investigate** starts or opens that alert's investigation (with the same threshold and already-running/closed rules) and **Open incident** opens the investigation behind the incident.
+
+The agent is simulated: new investigations add one reasoning step about every second and finish with a verdict, confidence score and recommended next steps. No AWS, Bedrock or backend calls are made.
+
+### FA2 Features
+
+- **Start an Alert Investigation:** start from any FA1 alert; low-severity alerts ask for confirmation; an alert with a running investigation opens it instead of starting another; a closed alert shows its result and offers Re-investigate.
+- **Investigation View:** progress, gathered evidence, verdict with confidence, and a **Recommended next steps** checklist with quick actions (copy CLI command or message, open filtered trace). Steps can be ticked or marked skipped with a reason.
+- **Resolve Alert with Next Steps:** close out as **True positive – escalate**, **Benign** or **False positive**. Benign/False positive need a reason; escalating with unticked steps asks for confirmation; the note is optional. The saved resolution records name, time, note and next-step status.
+- **Reasoning Trace:** numbered steps with decision, reason, tool, query, raw result and evidence links; failed steps, too-large results, very long traces and evidence links to events that no longer exist have their own states.
+- **Attack-Chain Graph:** events as nodes in time order with technique and "why it is linked"; single-event, branching, still-running, too-large and unmapped-technique states.
+
+### FA2 Demo Guide
+
+Each row maps to a use case extension in the shared Visual Paradigm project and a screen in the FA2 Figma wireframes. Start on **Investigations** (`#/investigations`). **Close-out scenario** is the selector under the close-out buttons on the Overview tab.
+
+| # | Screen or state | Steps to display it |
+| --- | --- | --- |
+| 0 | Handoff from FA1 | **Alerts & Sources → Alerts**, click **ALT-002**, then **Investigate** (opens INV-001) or **Open incident INC-001**. **ALT-004** shows the below-threshold dialog; **ALT-003** starts a new run. |
+| 1 | Investigation View – verdict and next steps | Open **INV-001**. Tick steps, use a quick action, or click **Open filtered trace**. |
+| 2 | Reasoning Trace | In INV-001 click **Reasoning Trace**; expand any step. |
+| 3 | Attack Chain Graph | In INV-001 click **Attack Chain**; select a node; **View in reasoning trace** jumps to its step. |
+| 4 | Below threshold (Start 4a) | Click **Investigate** on `ALT-004` (Low). Choose **Investigate anyway** or **Cancel**. |
+| 5 | Already running (Start 3a) | Click **Investigate** on `ALT-006`. INV-003 opens and keeps running. |
+| 6 | Already investigated, closed (Start 3b) | Click **Investigate** on `ALT-009`. **Re-investigate** starts a new run. |
+| 7 | Investigation started – trace running (Trace 2a) | Click **Investigate** on `ALT-001`, then open **Reasoning Trace** while it runs. |
+| 8 | Attack chain still running (Graph 2c) | Start a run as in row 7 and open **Attack Chain** while it runs. |
+| 9 | Paused – Bedrock unavailable (Start 6a) | Set **Investigation demo scenario → Amazon Bedrock unavailable**, then **Investigate** `ALT-003`. Click **Retry**. |
+| 10 | CloudTrail query failed (Start 7a) | Set the scenario to **CloudTrail query denied**, then **Investigate** `ALT-001` or `ALT-003`. Click **View failed step**. |
+| 11 | Failed step / large result / missing event (Trace 3a, 5a, 7a) | In INV-001 Reasoning Trace expand step 7 (failed), step 3 (too large) and step 2 → **Open Last StopLogging…** (no longer available). |
+| 12 | Very long trace (Trace 2b) | Reasoning Trace → **Trace demo scenario → Very long trace**. Click **Show all 24 steps**. |
+| 13 | Single event (Graph 2a) | Open **INV-002** → **Attack Chain**. |
+| 14 | Branching / too large / missing technique (Graph 2b, 2d, 3a) | Attack Chain → **Chain demo scenario → Branching chain** (select `CreateUser`) or **Large chain**. |
+| 15 | Needs human review (Resolve 2a) | Open **INV-002**. |
+| 16 | Next step skipped (Resolve 4a) | In INV-001 click **Can't do this step** on step 1, enter a reason, **Mark skipped**. |
+| 17 | Close as Benign / False positive (Resolve 5a) | In INV-001 click **Benign** or **False positive**; the close button stays disabled until a reason is entered. |
+| 18 | Not all next steps ticked (Resolve 5b) | In INV-001 leave a step unticked and click **True positive – escalate**. |
+| 19 | Submit without note (Resolve 6a) | Tick every step, click **True positive – escalate**, leave the note empty: **Submit without note**. |
+| 20 | Already resolved by someone else (Resolve 7a) | Set **Close-out scenario → Another analyst resolves it first**, then close out INV-001. |
+| 21 | Resolution could not be saved (Resolve 7b) | Set **Close-out scenario → Save fails once**, close out INV-001, then click **Retry** in the banner. |
+
+State is held in React and resets when the page is refreshed. Switching between FA1 and FA2 in the sidebar keeps each area's state.
+
 ## Current Limitations and Planned Work
 
 - Data is fictional. Connection tests, configuration, recovery, and save-failure actions are simulated; source scenarios do not alter the alert fixtures or generate live events.
 - State is held locally in React and resets on refresh. There is no server-side persistence or authentication; “SOC Analyst” is a prototype label.
-- Dashboard, investigation, and incident handoffs await FA2/FA3 integration. Investigate and Open incident controls are intentionally disabled with explanations; no investigation runs.
-- The temporary FA1 layout can later be replaced by the team's shared layout. The full team application and planned backend architecture are not complete.
+- The Dashboard (FA3) is not built yet and stays disabled in the sidebar. **Investigate** hands the alert to FA2's simulated investigation. **Open incident** shows the FA2 investigation behind the incident until FA3's incident report exists.
+- `Fa1Layout` is the shared shell for all functional areas; `App.jsx` switches areas with hash routes (`#/` for FA1, `#/investigations` for FA2) and keeps both areas mounted so their state survives switching. The full team application and planned backend architecture are not complete.
 - Backend services, live AWS ingestion, AI reasoning/correlation, and evidence-based incident reports are planned work, not implemented features of this prototype.
 - Copy JSON depends on browser clipboard support and permission. If copying fails, the JSON remains available for manual copying.
 

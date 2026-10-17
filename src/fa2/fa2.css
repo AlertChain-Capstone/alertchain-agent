@@ -1,0 +1,613 @@
+/* FA2 styles. Builds on the FA1 tokens (--fa1-*) and classes without changing them. */
+
+.fa2-nav-link {
+  text-decoration: none;
+}
+
+.fa2-nav-link:hover {
+  background: #e4e7ec;
+}
+
+.fa2-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.fa2-page .fa2-section {
+  margin-top: 24px;
+}
+
+.fa2-page .fa2-link,
+.fa2-page .fa2-crumb {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fa1-blue);
+  font-size: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.fa2-page .fa2-link:hover:not(:disabled),
+.fa2-page .fa2-crumb:hover {
+  background: none;
+  color: #24496e;
+}
+
+.fa2-page .fa2-crumb {
+  color: var(--fa1-muted);
+  font-size: 13px;
+}
+
+.fa2-page .fa2-link-muted {
+  color: var(--fa1-muted);
+}
+
+.fa2-table td {
+  vertical-align: middle;
+}
+
+.fa2-break {
+  word-break: break-word;
+}
+
+/* Headings and trace steps receive focus programmatically after navigation. */
+.fa2-page h1:focus,
+.fa2-trace-step:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.fa2-node-evidence {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+/* Banners (info / warning / danger), matching the wireframe states. */
+.fa2-banners:empty {
+  display: none;
+}
+
+.fa2-banners {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.fa2-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  padding: 12px 16px;
+  border: 1px solid;
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.fa2-banners .fa2-banner {
+  margin-bottom: 0;
+}
+
+.fa2-banner p {
+  flex: 1 1 320px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.fa2-banner-info {
+  border-color: #b2ddff;
+  background: #eff8ff;
+  color: #1849a9;
+}
+
+.fa2-banner-warning {
+  border-color: #fec84b;
+  background: #fffaeb;
+  color: #b54708;
+}
+
+.fa2-banner-danger {
+  border-color: #fda29b;
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.fa2-title {
+  margin-top: 4px;
+}
+
+.fa2-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  margin: 8px 0 24px;
+  border-bottom: 1px solid var(--fa1-border);
+}
+
+.fa2-page .fa2-tabs button {
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: #475467;
+  font-weight: 500;
+}
+
+.fa2-page .fa2-tabs button:hover:not(:disabled) {
+  background: none;
+  color: var(--fa1-text);
+}
+
+.fa2-page .fa2-tabs button[aria-current='page'] {
+  border-bottom-color: var(--fa1-blue);
+  color: var(--fa1-blue);
+  font-weight: 600;
+}
+
+/* Overview */
+.fa2-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr);
+  align-items: start;
+  gap: 24px;
+}
+
+.fa2-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.fa2-stats {
+  margin: 16px 0 0;
+}
+
+.fa2-stats dd {
+  font-size: 20px;
+}
+
+.fa2-evidence {
+  display: grid;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fa2-evidence li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid #eaecf0;
+  font-size: 14px;
+}
+
+.fa2-eyebrow {
+  margin: 0 0 6px;
+  color: var(--fa1-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.fa2-page h2.fa2-eyebrow {
+  font-size: 12px;
+}
+
+.fa2-verdict-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.fa2-confidence {
+  height: 8px;
+  margin: 12px 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eaecf0;
+}
+
+.fa2-confidence span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #475467;
+}
+
+.fa2-summary,
+.fa2-dialog-text {
+  color: #475467;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.fa2-page .fa2-subheading {
+  margin: 20px 0 10px;
+  font-size: 16px;
+}
+
+.fa2-checklist {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fa2-checklist li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 14px;
+}
+
+.fa2-checklist input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--fa1-blue);
+}
+
+.fa2-checklist label {
+  line-height: 1.4;
+}
+
+.fa2-step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.fa2-skipped label {
+  color: var(--fa1-muted);
+}
+
+.fa2-skip-reason,
+.fa2-warning-text {
+  margin: 4px 0 0;
+  color: #b54708;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.fa2-skip-form {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.fa2-skip-form input,
+.fa2-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--fa1-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.fa2-checklist-note {
+  margin: 12px 0;
+  line-height: 1.5;
+}
+
+.fa2-actions-row {
+  margin-top: 10px;
+}
+
+.fa2-inline-demo {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+  font-size: 12px;
+}
+
+.fa2-inline-demo select {
+  max-width: 280px;
+}
+
+.fa2-spread .fa2-inline-demo {
+  margin: 0 0 0 auto;
+}
+
+.fa2-resolution {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid #a6f4c5;
+  border-radius: 10px;
+  background: #ecfdf3;
+  color: #027a48;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.fa2-resolution-other {
+  border-color: #fec84b;
+  background: #fffaeb;
+  color: #b54708;
+}
+
+.fa2-incident {
+  margin: 16px 0 0;
+  font-size: 14px;
+}
+
+/* Dialogs */
+.fa2-field-label {
+  display: block;
+  margin: 16px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fa2-radios {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+  font-size: 14px;
+}
+
+.fa2-radios input {
+  accent-color: var(--fa1-blue);
+}
+
+/* Reasoning trace */
+.fa2-trace-layout,
+.fa2-chain-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+
+.fa2-trace-layout:has(.fa2-drawer),
+.fa2-chain-layout {
+  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  align-items: start;
+}
+
+.fa2-trace {
+  display: grid;
+  gap: 0;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fa2-trace-step {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px 0;
+  border-top: 1px solid #eaecf0;
+}
+
+.fa2-trace-step:focus-visible {
+  outline: 3px solid #84adcf;
+  outline-offset: 2px;
+}
+
+.fa2-step-number {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #f2f4f7;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fa2-trace-failed .fa2-step-number {
+  background: #fee4e2;
+  color: #b42318;
+}
+
+.fa2-trace-pending {
+  color: var(--fa1-muted);
+}
+
+.fa2-step-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fa2-step-body p {
+  margin: 6px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.fa2-step-details {
+  margin-top: 10px;
+}
+
+.fa2-step-details .fa1-raw-json {
+  max-height: 260px;
+  margin: 0 0 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.fa2-trace-gap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px;
+  border-top: 1px solid #eaecf0;
+  background: #f9fafb;
+  color: #475467;
+  font-size: 14px;
+}
+
+.fa2-drawer {
+  position: sticky;
+  top: 16px;
+}
+
+.fa2-drawer .fa1-raw-json {
+  max-height: 360px;
+  margin-bottom: 12px;
+}
+
+/* Attack chain */
+.fa2-chain-card {
+  min-width: 0;
+}
+
+.fa2-graph {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px 0;
+  min-height: 280px;
+  margin: 16px 0;
+  padding: 16px 0;
+}
+
+.fa2-graph-col-wrap {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.fa2-graph-col {
+  display: grid;
+  gap: 14px;
+}
+
+.fa2-arrow {
+  padding: 0 6px;
+  color: #475467;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.fa2-page .fa2-node {
+  display: grid;
+  gap: 6px;
+  width: 184px;
+  padding: 12px;
+  border: 1px solid var(--fa1-border);
+  border-radius: 10px;
+  background: #f9fafb;
+  font-weight: 400;
+  text-align: left;
+}
+
+.fa2-page .fa2-node strong {
+  font-size: 16px;
+}
+
+.fa2-page .fa2-node .fa1-muted {
+  font-size: 12px;
+}
+
+.fa2-page .fa2-node-selected {
+  border: 2px solid var(--fa1-blue);
+  background: #e6eef7;
+}
+
+.fa2-page .fa2-node-selected:hover:not(:disabled) {
+  background: #dce7f3;
+}
+
+.fa2-node-gap {
+  display: grid;
+  gap: 6px;
+  width: 160px;
+  padding: 14px;
+  border: 1px dashed var(--fa1-border);
+  border-radius: 10px;
+  color: #475467;
+  text-align: center;
+}
+
+.fa2-technique {
+  color: var(--fa1-blue);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.fa2-branch-note {
+  font-size: 12px;
+}
+
+.fa2-chain-empty,
+.fa2-chain-note {
+  margin: 8px 0 16px;
+  color: #475467;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.fa2-node-fields {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+.fa2-node-fields dt {
+  margin-top: 8px;
+  color: var(--fa1-muted);
+  font-size: 12px;
+}
+
+.fa2-node-fields dd {
+  margin: 0;
+  line-height: 1.45;
+}
+
+@media (max-width: 1100px) {
+  .fa2-columns,
+  .fa2-chain-layout,
+  .fa2-trace-layout:has(.fa2-drawer) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fa2-drawer {
+    position: static;
+  }
+}
+
+@media (max-width: 600px) {
+  .fa2-evidence li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .fa2-evidence li > :last-child {
+    grid-column: 2;
+  }
+
+  .fa2-spread .fa2-inline-demo {
+    margin: 12px 0 0;
+  }
+}
+
+/* Grid cell that holds one functional area inside the shared shell (App.jsx). */
+.app-area {
+  min-width: 0;
+}
+
+.app-area[hidden] {
+  display: none;
+}

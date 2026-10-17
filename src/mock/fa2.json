@@ -1,0 +1,504 @@
+{
+  "referenceTime": "2026-10-17T16:00:00Z",
+  "severityThreshold": "Medium",
+  "confidenceReviewThreshold": 70,
+  "maxSteps": 15,
+  "analystName": "Harneet Kaur",
+  "otherAnalystName": "Jacob Makil",
+  "investigations": [
+    {
+      "id": "INV-001",
+      "alertId": "ALT-002",
+      "incidentId": "INC-001",
+      "status": "done",
+      "startedAt": "2026-10-17T15:41:00Z",
+      "finishedAt": "2026-10-17T15:44:00Z",
+      "verdict": "Likely malicious",
+      "confidence": 86,
+      "summary": "An access key was created from IP 203.0.113.45 at 14:30. About 70 minutes later the same IP used dev-ci-user to stop CloudTrail logging on sample-security-trail (E1, E2). GuardDuty then reported credentials being used from outside AWS (E3). Treat this as a compromised key.",
+      "evidence": [
+        {
+          "id": "E1",
+          "alertId": "ALT-003",
+          "text": "ALT-003 · CreateAccessKey from 203.0.113.45 · 14:30",
+          "source": "CloudTrail"
+        },
+        {
+          "id": "E2",
+          "alertId": "ALT-002",
+          "text": "ALT-002 · StopLogging on sample-security-trail by dev-ci-user · 15:40",
+          "source": "CloudTrail"
+        },
+        {
+          "id": "E3",
+          "alertId": "ALT-001",
+          "text": "ALT-001 · GuardDuty credential use outside AWS · 15:55",
+          "source": "GuardDuty"
+        },
+        {
+          "id": "E4",
+          "alertId": null,
+          "text": "Baseline · dev-ci-user has never called StopLogging (90 days)",
+          "source": "Baseline"
+        }
+      ],
+      "nextSteps": [
+        {
+          "id": "NS1",
+          "text": "Disable access key DEMO-ACCESS-KEY-002 for dev-ci-user",
+          "action": {
+            "kind": "copy",
+            "label": "Copy CLI command",
+            "value": "aws iam update-access-key --user-name dev-ci-user --access-key-id DEMO-ACCESS-KEY-002 --status Inactive"
+          }
+        },
+        {
+          "id": "NS2",
+          "text": "Re-enable CloudTrail logging on sample-security-trail",
+          "action": {
+            "kind": "copy",
+            "label": "Copy CLI command",
+            "value": "aws cloudtrail start-logging --name sample-security-trail"
+          }
+        },
+        {
+          "id": "NS3",
+          "text": "Review everything 203.0.113.45 did after 14:30",
+          "action": {
+            "kind": "trace",
+            "label": "Open filtered trace",
+            "filter": "203.0.113.45"
+          }
+        },
+        {
+          "id": "NS4",
+          "text": "Rotate CI pipeline credentials and tell the DevOps owner",
+          "action": {
+            "kind": "copy",
+            "label": "Copy message",
+            "value": "Hi DevOps owner – AlertChain found that dev-ci-user's access key DEMO-ACCESS-KEY-002 was used to stop CloudTrail logging (INC-001). Please rotate the CI pipeline credentials today."
+          }
+        }
+      ],
+      "trace": [
+        {
+          "n": 1,
+          "decision": "Read the alert that started the investigation",
+          "why": "Every investigation starts from the alert's normalized fields.",
+          "tool": "Alert store (FA1)",
+          "query": "GET /alerts/ALT-002",
+          "result": "StopLogging on sample-security-trail by dev-ci-user from 203.0.113.45 at 15:40 UTC.",
+          "evidence": []
+        },
+        {
+          "n": 2,
+          "decision": "Check whether dev-ci-user normally stops logging",
+          "why": "A first-time action by a CI user is unusual.",
+          "tool": "AWS CloudTrail",
+          "query": "LookupEvents Username=dev-ci-user EventName=StopLogging, last 90 days",
+          "result": "0 events in 90 days.",
+          "evidence": [
+            "E4"
+          ],
+          "links": [
+            {
+              "label": "Last StopLogging by any user (2026-06-30)",
+              "alertId": null,
+              "available": false
+            }
+          ]
+        },
+        {
+          "n": 3,
+          "decision": "Find everything the access key did",
+          "why": "If the key is stolen, its other calls show what the attacker touched.",
+          "tool": "AWS CloudTrail",
+          "query": "LookupEvents AccessKeyId=DEMO-ACCESS-KEY-002, last 24 hours",
+          "result": "14 events between 14:31 and 15:40, all from 203.0.113.45.",
+          "tooLarge": {
+            "size": "2.3 MB",
+            "lines": 14880
+          },
+          "evidence": [
+            "E2"
+          ],
+          "links": [
+            {
+              "label": "ALT-002 StopLogging event",
+              "alertId": "ALT-002",
+              "available": true
+            }
+          ]
+        },
+        {
+          "n": 4,
+          "decision": "Look for related activity from the same IP",
+          "why": "Attackers often create a new key first, then use it.",
+          "tool": "AWS CloudTrail",
+          "query": "LookupEvents SourceIPAddress=203.0.113.45, last 24 hours",
+          "result": "CreateAccessKey at 14:30 (ALT-003).",
+          "evidence": [
+            "E1"
+          ],
+          "links": [
+            {
+              "label": "ALT-003 CreateAccessKey event",
+              "alertId": "ALT-003",
+              "available": true
+            }
+          ]
+        },
+        {
+          "n": 5,
+          "decision": "Check GuardDuty findings in the same window",
+          "why": "GuardDuty may have seen the credentials used elsewhere.",
+          "tool": "Amazon GuardDuty",
+          "query": "ListFindings updatedAt >= 14:00, account 123456789012",
+          "result": "UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS at 15:55 (ALT-001).",
+          "evidence": [
+            "E3"
+          ],
+          "links": [
+            {
+              "label": "ALT-001 GuardDuty finding",
+              "alertId": "ALT-001",
+              "available": true
+            }
+          ]
+        },
+        {
+          "n": 6,
+          "decision": "Link the events into an attack chain",
+          "why": "Same IP, same key, all within the 24 h correlation window.",
+          "tool": "Correlation rules",
+          "query": "correlate(E1, E2, E3, window=24h)",
+          "result": "Chain of 3 events: CreateAccessKey → StopLogging → credential use outside AWS.",
+          "evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ]
+        },
+        {
+          "n": 7,
+          "decision": "Check whether data was read from S3",
+          "why": "Stopping logging is often done before stealing data.",
+          "tool": "Amazon S3",
+          "query": "Read access logs for sample-audit-bucket",
+          "result": "AccessDenied – the agent has no permission to read the access-log bucket.",
+          "failed": true,
+          "evidence": []
+        },
+        {
+          "n": 8,
+          "decision": "Map each event to an attack technique",
+          "why": "MITRE ATT&CK techniques make the chain easier to explain.",
+          "tool": "Amazon Bedrock",
+          "query": "map_techniques([CreateAccessKey, StopLogging, GuardDuty finding])",
+          "result": "T1098.001, T1562.008, T1078.004.",
+          "evidence": []
+        },
+        {
+          "n": 9,
+          "decision": "Write the verdict and next steps",
+          "why": "The analyst needs a decision and concrete actions, not just a report.",
+          "tool": "Amazon Bedrock",
+          "query": "summarize(evidence=E1–E4, chain=3 events)",
+          "result": "Likely malicious, confidence 86%. 4 next steps.",
+          "evidence": [
+            "E1",
+            "E2",
+            "E3",
+            "E4"
+          ]
+        }
+      ],
+      "chain": {
+        "window": "14:30 → 15:55 UTC, 2026-10-17",
+        "nodes": [
+          {
+            "id": "N1",
+            "alertId": "ALT-003",
+            "time": "14:30",
+            "event": "CreateAccessKey",
+            "principal": "sample-user",
+            "resource": "IAM user sample-user",
+            "technique": "T1098.001 Additional Cloud Credentials",
+            "why": "First event in the chain: a new key was created from 203.0.113.45.",
+            "evidence": "E1",
+            "traceStep": 4
+          },
+          {
+            "id": "N2",
+            "alertId": "ALT-002",
+            "time": "15:40",
+            "event": "StopLogging",
+            "principal": "dev-ci-user (key DEMO-ACCESS-KEY-002)",
+            "resource": "Trail sample-security-trail",
+            "technique": "T1562.008 Disable or Modify Cloud Logs",
+            "why": "Same source IP as node 1 and happened 70 minutes later (within the 24 h window).",
+            "evidence": "E2",
+            "traceStep": 3
+          },
+          {
+            "id": "N3",
+            "alertId": "ALT-001",
+            "time": "15:55",
+            "event": "GuardDuty finding",
+            "principal": "sample-instance-role",
+            "resource": "UnauthorizedAccess:IAMUser",
+            "technique": "T1078.004 Valid Accounts: Cloud Accounts",
+            "why": "Credentials used from outside AWS 15 minutes after logging was stopped.",
+            "evidence": "E3",
+            "traceStep": 5
+          }
+        ],
+        "edges": [
+          [
+            "N1",
+            "N2"
+          ],
+          [
+            "N2",
+            "N3"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "INV-002",
+      "alertId": "ALT-008",
+      "incidentId": "INC-002",
+      "status": "done",
+      "startedAt": "2026-10-16T17:02:00Z",
+      "finishedAt": "2026-10-16T17:04:00Z",
+      "verdict": "Needs human review",
+      "confidence": 62,
+      "summary": "dev-ci-user attached a policy to sample-deployer at 17:00. The CI pipeline sometimes does this during deployments, but no deployment was recorded at that time. The agent is not sure – check E1 and E2 before deciding.",
+      "evidence": [
+        {
+          "id": "E1",
+          "alertId": "ALT-008",
+          "text": "ALT-008 · AttachUserPolicy on sample-deployer by dev-ci-user · 17:00",
+          "source": "CloudTrail"
+        },
+        {
+          "id": "E2",
+          "alertId": null,
+          "text": "Baseline · dev-ci-user attached policies 3 times in 90 days, all during deploys",
+          "source": "Baseline"
+        }
+      ],
+      "nextSteps": [
+        {
+          "id": "NS1",
+          "text": "Ask the DevOps owner whether a deployment ran at 17:00",
+          "action": {
+            "kind": "copy",
+            "label": "Copy message",
+            "value": "Hi DevOps owner – did a deployment run on 2026-10-16 at 17:00 UTC? AlertChain saw dev-ci-user attach a policy to sample-deployer (INC-002)."
+          }
+        },
+        {
+          "id": "NS2",
+          "text": "Review what sample-deployer did after 17:00",
+          "action": {
+            "kind": "trace",
+            "label": "Open filtered trace",
+            "filter": "sample-deployer"
+          }
+        },
+        {
+          "id": "NS3",
+          "text": "If not confirmed in 24 h, detach the policy from sample-deployer",
+          "action": {
+            "kind": "copy",
+            "label": "Copy CLI command",
+            "value": "aws iam detach-user-policy --user-name sample-deployer --policy-arn arn:aws:iam::aws:policy/AdministratorAccess"
+          }
+        }
+      ],
+      "trace": [
+        {
+          "n": 1,
+          "decision": "Read the alert that started the investigation",
+          "why": "Every investigation starts from the alert's normalized fields.",
+          "tool": "Alert store (FA1)",
+          "query": "GET /alerts/ALT-008",
+          "result": "AttachUserPolicy on sample-deployer by dev-ci-user at 17:00 UTC.",
+          "evidence": [
+            "E1"
+          ],
+          "links": [
+            {
+              "label": "ALT-008 AttachUserPolicy event",
+              "alertId": "ALT-008",
+              "available": true
+            }
+          ]
+        },
+        {
+          "n": 2,
+          "decision": "Check how often dev-ci-user attaches policies",
+          "why": "CI users may do this as part of deployments.",
+          "tool": "AWS CloudTrail",
+          "query": "LookupEvents Username=dev-ci-user EventName=AttachUserPolicy, last 90 days",
+          "result": "3 events, all during recorded deployments.",
+          "evidence": [
+            "E2"
+          ]
+        },
+        {
+          "n": 3,
+          "decision": "Look for a deployment at the same time",
+          "why": "A matching deploy would make this benign.",
+          "tool": "AWS CloudTrail",
+          "query": "LookupEvents EventSource=codedeploy.amazonaws.com, 16:30–17:30",
+          "result": "No deployment events found.",
+          "evidence": []
+        },
+        {
+          "n": 4,
+          "decision": "Look for related suspicious events",
+          "why": "A real attack usually shows more than one step.",
+          "tool": "AWS CloudTrail",
+          "query": "LookupEvents Username=sample-deployer, 17:00–18:00",
+          "result": "No further activity from sample-deployer.",
+          "evidence": []
+        },
+        {
+          "n": 5,
+          "decision": "Link the events into an attack chain",
+          "why": "Correlate anything related within 24 h.",
+          "tool": "Correlation rules",
+          "query": "correlate(E1, window=24h)",
+          "result": "Only one event – no chain.",
+          "evidence": [
+            "E1"
+          ]
+        },
+        {
+          "n": 6,
+          "decision": "Write the verdict and next steps",
+          "why": "The analyst needs a decision and concrete actions.",
+          "tool": "Amazon Bedrock",
+          "query": "summarize(evidence=E1–E2, chain=1 event)",
+          "result": "Needs human review, confidence 62%. 3 next steps.",
+          "evidence": [
+            "E1",
+            "E2"
+          ]
+        }
+      ],
+      "chain": {
+        "window": "17:00 UTC, 2026-10-16",
+        "nodes": [
+          {
+            "id": "N1",
+            "alertId": "ALT-008",
+            "time": "17:00",
+            "event": "AttachUserPolicy",
+            "principal": "dev-ci-user",
+            "resource": "IAM user sample-deployer",
+            "technique": "T1098 Account Manipulation",
+            "why": "This is the only event linked to ALT-008. No other event shares its principal within the 24 h window.",
+            "evidence": "E1",
+            "traceStep": 1
+          }
+        ],
+        "edges": []
+      }
+    },
+    {
+      "id": "INV-003",
+      "alertId": "ALT-006",
+      "incidentId": null,
+      "status": "running",
+      "startedAt": "2026-10-17T15:58:00Z",
+      "finishedAt": null,
+      "templateFor": "ALT-006"
+    },
+    {
+      "id": "INV-004",
+      "alertId": "ALT-009",
+      "incidentId": null,
+      "status": "done",
+      "startedAt": "2026-10-15T16:02:00Z",
+      "finishedAt": "2026-10-15T16:05:00Z",
+      "verdict": "Likely benign",
+      "confidence": 91,
+      "summary": "sandbox-admin deleted sample-retired-trail during planned maintenance (change CHG-104). No related suspicious activity was found.",
+      "evidence": [
+        {
+          "id": "E1",
+          "alertId": "ALT-009",
+          "text": "ALT-009 · DeleteTrail on sample-retired-trail by sandbox-admin · 16:00",
+          "source": "CloudTrail"
+        }
+      ],
+      "nextSteps": [
+        {
+          "id": "NS1",
+          "text": "Confirm change CHG-104 covered deleting sample-retired-trail",
+          "action": {
+            "kind": "copy",
+            "label": "Copy message",
+            "value": "Please confirm CHG-104 covered deleting sample-retired-trail."
+          }
+        }
+      ],
+      "resolution": {
+        "type": "Benign",
+        "by": "Jacob Makil",
+        "at": "2026-10-15T17:05:00Z",
+        "note": "Planned retirement of the old trail (CHG-104).",
+        "done": [
+          "NS1"
+        ],
+        "skipped": {}
+      },
+      "trace": [
+        {
+          "n": 1,
+          "decision": "Read the alert that started the investigation",
+          "why": "Every investigation starts from the alert's normalized fields.",
+          "tool": "Alert store (FA1)",
+          "query": "GET /alerts/ALT-009",
+          "result": "DeleteTrail on sample-retired-trail by sandbox-admin.",
+          "evidence": [
+            "E1"
+          ]
+        },
+        {
+          "n": 2,
+          "decision": "Write the verdict and next steps",
+          "why": "No related activity found.",
+          "tool": "Amazon Bedrock",
+          "query": "summarize(evidence=E1)",
+          "result": "Likely benign, confidence 91%.",
+          "evidence": [
+            "E1"
+          ]
+        }
+      ],
+      "chain": {
+        "window": "16:00 UTC, 2026-10-15",
+        "nodes": [
+          {
+            "id": "N1",
+            "alertId": "ALT-009",
+            "time": "16:00",
+            "event": "DeleteTrail",
+            "principal": "sandbox-admin",
+            "resource": "Trail sample-retired-trail",
+            "technique": "T1562.008 Disable or Modify Cloud Logs",
+            "why": "Only event linked to ALT-009.",
+            "evidence": "E1",
+            "traceStep": 1
+          }
+        ],
+        "edges": []
+      }
+    }
+  ]
+}
