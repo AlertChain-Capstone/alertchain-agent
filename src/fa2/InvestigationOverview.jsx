@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { config, formatDateTime, formatTime, needsReview } from './fa2Data'
 import { CloseAsDialog, EscalateDialog } from './CloseOutDialogs'
 
@@ -67,8 +68,7 @@ export default function InvestigationOverview({ inv, closeoutScenario, onCloseou
               {inv.incidentId ? (
                 <>
                   <span>Incident {inv.incidentId}</span>{' '}
-                  <button type="button" className="fa2-link" disabled aria-describedby="fa2-report-note">View report →</button>
-                  <span id="fa2-report-note" className="fa1-muted"> Incident report unavailable — awaiting FA3 team integration.</span>
+                  <Link className="fa2-link" to={`/incidents/${inv.incidentId}`}>View report →</Link>
                 </>
               ) : (
                 <span className="fa1-muted">No incident created for this alert.</span>

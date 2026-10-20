@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import AlertBadge from '../fa1/AlertBadge'
+import AlertBadge from '../shared/AlertBadge'
 import { alerts, alertById, config, formatDateTime } from './fa2Data'
 import StatusChip from './StatusChip'
 

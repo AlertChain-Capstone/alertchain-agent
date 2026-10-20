@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router'
 import data from '../mock/fa1.json'
 import MonitoredEventsEditor from './MonitoredEventsEditor'
 import AlertsList from './AlertsList'
@@ -15,11 +16,13 @@ const eventDetails = {
   ConsoleLogin: ['Sign-in', 'Failed sign-ins may indicate password guessing'],
 }
 
-export default function Fa1App({ onInvestigate, onOpenIncident }) {
+export default function Fa1App({ onInvestigate, onOpenIncident, route, active }) {
+  const navigate = useNavigate()
   const [message, setMessage] = useState('')
   const [editorOpen, setEditorOpen] = useState(false)
   const [monitoredEvents, setMonitoredEvents] = useState(data.monitoredEvents)
-  const [view, setView] = useState('sources')
+  const view = route?.view ?? 'sources'
+  const setView = (next) => navigate(next === 'sources' ? '/sources' : '/alerts')
   const [alertFilters, setAlertFilters] = useState({
     search: '', severity: '', source: '', status: '', timeRange: '24',
   })
@@ -74,16 +77,16 @@ export default function Fa1App({ onInvestigate, onOpenIncident }) {
   }
 
   useEffect(() => {
-    if (view === 'alerts' && restoreAlertFocus.current) {
+    if (active && view === 'alerts' && restoreAlertFocus.current) {
       const target = document.getElementById(`open-${selectedAlertId}`) ?? document.getElementById('alerts-heading')
       target?.focus()
       restoreAlertFocus.current = false
     }
-  }, [view, selectedAlertId])
+  }, [view, selectedAlertId, active])
 
   function openAlert(id) {
     setSelectedAlertId(id)
-    setView('detail')
+    navigate(`/alerts/${encodeURIComponent(id)}`)
   }
 
   function backToAlerts() {
@@ -125,8 +128,8 @@ export default function Fa1App({ onInvestigate, onOpenIncident }) {
       </nav>
       {view === 'detail' ? (
         <AlertDetail
-          key={selectedAlertId}
-          alert={data.alerts.find((alert) => alert.id === selectedAlertId)}
+          key={route.params.id}
+          alert={data.alerts.find((alert) => alert.id === route.params.id)}
           onBack={backToAlerts}
           onInvestigate={onInvestigate}
           onOpenIncident={onOpenIncident}
@@ -223,7 +226,7 @@ export default function Fa1App({ onInvestigate, onOpenIncident }) {
             </>
           )}
 
-          {editorOpen && (
+          {active && editorOpen && (
             <MonitoredEventsEditor
               selected={monitoredEvents}
               options={Object.keys(eventDetails)}

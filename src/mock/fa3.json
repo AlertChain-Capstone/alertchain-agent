@@ -1,0 +1,288 @@
+{
+  "referenceTime": "2026-10-17T16:00:00Z",
+  "accountId": "123456789012",
+  "region": "us-east-1",
+  "sources": [
+    {
+      "id": "guardduty",
+      "name": "Amazon GuardDuty",
+      "status": "Connected",
+      "lastEventAt": "2026-10-17T15:55:00Z"
+    },
+    {
+      "id": "cloudtrail",
+      "name": "AWS CloudTrail",
+      "status": "Connected",
+      "lastEventAt": "2026-10-17T15:58:00Z"
+    }
+  ],
+  "incidents": [
+    {
+      "id": "INC-001",
+      "title": "Leaked access key used to disable logging",
+      "severity": "High",
+      "status": "Open",
+      "occurredAt": "2026-10-17T15:40:00Z",
+      "investigationId": "INV-001",
+      "reportState": "ready",
+      "needsReview": false,
+      "summary": "CloudTrail records a new access key for sample-user at 14:30 UTC and a StopLogging call by dev-ci-user on sample-security-trail at 15:40 UTC. Both events share source IP 203.0.113.45. A GuardDuty finding at 15:55 UTC records sample-instance-role credentials used outside AWS.",
+      "limitations": "Possible credential compromise is the investigation's interpretation. The events record different principals and access keys; they do not prove that the newly created key stopped logging or that one attacker performed all three actions. No stored event establishes data exfiltration.",
+      "chain": "CreateAccessKey \u2192 StopLogging \u2192 GuardDuty finding. The first two events share a source IP and occur 70 minutes apart. The GuardDuty event is a candidate correlation by time; its principal and IP differ.",
+      "reviewReason": "Validate the proposed correlation against the original events before treating it as confirmed.",
+      "evidence": [
+        {
+          "id": "E1",
+          "incidentId": "INC-001",
+          "alertId": "ALT-003",
+          "source": "AWS CloudTrail",
+          "eventName": "CreateAccessKey",
+          "occurredAt": "2026-10-17T14:30:00Z",
+          "summary": "A CreateAccessKey event was detected for a monitored user.",
+          "principal": "sample-user",
+          "resource": "sample-user",
+          "raw": {
+            "eventName": "CreateAccessKey",
+            "eventSource": "iam.amazonaws.com",
+            "awsRegion": "us-east-1",
+            "eventTime": "2026-10-17T14:30:00Z",
+            "userIdentity": {
+              "type": "IAMUser",
+              "userName": "sample-user",
+              "accessKeyId": "DEMO-ACCESS-KEY-003"
+            },
+            "sourceIPAddress": "203.0.113.45",
+            "resources": [
+              {
+                "resourceName": "sample-user"
+              }
+            ]
+          }
+        },
+        {
+          "id": "E2",
+          "incidentId": "INC-001",
+          "alertId": "ALT-002",
+          "source": "AWS CloudTrail",
+          "eventName": "StopLogging",
+          "occurredAt": "2026-10-17T15:40:00Z",
+          "summary": "A StopLogging event was detected for a monitored trail.",
+          "principal": "dev-ci-user",
+          "resource": "sample-security-trail",
+          "raw": {
+            "eventName": "StopLogging",
+            "eventSource": "cloudtrail.amazonaws.com",
+            "awsRegion": "us-east-1",
+            "eventTime": "2026-10-17T15:40:00Z",
+            "userIdentity": {
+              "type": "IAMUser",
+              "userName": "dev-ci-user",
+              "accessKeyId": "DEMO-ACCESS-KEY-002"
+            },
+            "sourceIPAddress": "203.0.113.45",
+            "resources": [
+              {
+                "resourceName": "sample-security-trail"
+              }
+            ]
+          }
+        },
+        {
+          "id": "E3",
+          "incidentId": "INC-001",
+          "alertId": "ALT-001",
+          "source": "Amazon GuardDuty",
+          "eventName": "UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS",
+          "occurredAt": "2026-10-17T15:55:00Z",
+          "summary": "Sample finding indicating unusual API activity.",
+          "principal": "sample-instance-role",
+          "resource": "i-0123456789abcdef0",
+          "raw": {
+            "id": "sample-finding-001",
+            "type": "UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS",
+            "severity": 8,
+            "region": "us-east-1",
+            "updatedAt": "2026-10-17T15:55:00Z",
+            "description": "Sample finding indicating unusual API activity.",
+            "resource": {
+              "resourceType": "Instance",
+              "accessKeyDetails": {
+                "userName": "sample-instance-role",
+                "accessKeyId": "DEMO-ACCESS-KEY-001"
+              },
+              "instanceDetails": {
+                "instanceId": "i-0123456789abcdef0"
+              }
+            },
+            "service": {
+              "action": {
+                "actionType": "AWS_API_CALL",
+                "awsApiCallAction": {
+                  "remoteIpDetails": {
+                    "ipAddressV4": "198.51.100.12"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "answers": [
+        {
+          "question": "What shows that logging was disabled?",
+          "text": "The stored CloudTrail StopLogging event at 15:40 UTC records dev-ci-user calling StopLogging on sample-security-trail from 203.0.113.45. It supports that logging was stopped at that time; it does not establish the trail's current state.",
+          "citations": [
+            "E2"
+          ]
+        },
+        {
+          "question": "How are the events related?",
+          "text": "CreateAccessKey at 14:30 UTC and StopLogging at 15:40 UTC share source IP 203.0.113.45. The GuardDuty finding follows at 15:55 UTC, but has a different principal and IP. Time proximity suggests a candidate chain; these records do not prove the same attacker or access key caused every event.",
+          "citations": [
+            "E1",
+            "E2",
+            "E3"
+          ]
+        },
+        {
+          "question": "Who stopped logging?",
+          "text": "The StopLogging record identifies IAM user dev-ci-user and access key DEMO-ACCESS-KEY-002. The event identifies the credentials used, not the human who used them.",
+          "citations": [
+            "E2"
+          ]
+        },
+        {
+          "question": "What disabled logging, and was data copied?",
+          "text": "CloudTrail records a StopLogging call by dev-ci-user on sample-security-trail at 15:40 UTC.",
+          "citations": [
+            "E2"
+          ],
+          "partial": true,
+          "limitation": "The stored evidence does not establish whether data was copied. That part of the question remains unanswered."
+        }
+      ]
+    },
+    {
+      "id": "INC-002",
+      "title": "Unexpected policy attachment by dev-ci-user",
+      "severity": "Medium",
+      "status": "Needs human review",
+      "occurredAt": "2026-10-16T17:00:00Z",
+      "investigationId": "INV-002",
+      "reportState": "ready",
+      "needsReview": true,
+      "summary": "CloudTrail records dev-ci-user attaching a policy to sample-deployer at 17:00 UTC. The stored event shows a policy change; it does not establish whether that change was approved.",
+      "limitations": "The investigation is inconclusive (62% confidence). Approval and deployment records are not included in this report's stored event evidence.",
+      "chain": null,
+      "reviewReason": "The policy change may be legitimate deployment activity. An analyst must verify the change context.",
+      "evidence": [
+        {
+          "id": "E1",
+          "incidentId": "INC-002",
+          "alertId": "ALT-008",
+          "source": "AWS CloudTrail",
+          "eventName": "AttachUserPolicy",
+          "occurredAt": "2026-10-16T17:00:00Z",
+          "summary": "Fictional policy attachment awaiting review.",
+          "principal": "dev-ci-user",
+          "resource": "IAM user sample-deployer",
+          "raw": {
+            "eventName": "AttachUserPolicy",
+            "eventSource": "iam.amazonaws.com",
+            "eventTime": "2026-10-16T17:00:00Z",
+            "awsRegion": "us-east-1",
+            "userIdentity": {
+              "type": "IAMUser",
+              "userName": "dev-ci-user"
+            },
+            "resources": [
+              {
+                "resourceName": "IAM user sample-deployer"
+              }
+            ]
+          }
+        }
+      ],
+      "answers": [
+        {
+          "question": "What happened in this incident?",
+          "text": "The stored AttachUserPolicy event at 17:00 UTC on 16 October records dev-ci-user attaching a policy to sample-deployer. It does not show whether the change was approved.",
+          "citations": [
+            "E1"
+          ]
+        },
+        {
+          "question": "Why does this need human review?",
+          "text": "The event confirms a policy attachment, but does not establish authorization or intent. The available event alone cannot distinguish an approved change from misuse.",
+          "citations": [
+            "E1"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "INC-DEMO-003",
+      "title": "Bucket policy review in progress",
+      "severity": "High",
+      "status": "Open",
+      "occurredAt": "2026-10-17T10:05:00Z",
+      "investigationId": null,
+      "reportState": "generating",
+      "needsReview": false,
+      "demoOnly": true,
+      "summary": "This additional FA3 sample demonstrates list navigation and report layout. A detailed investigation report has not been included.",
+      "limitations": "No supporting evidence was included in this additional fixture. No factual answer or supported attack chain can be produced.",
+      "chain": null,
+      "evidence": [],
+      "answers": []
+    },
+    {
+      "id": "INC-DEMO-004",
+      "title": "Review of retired trail deletion",
+      "severity": "High",
+      "status": "Closed",
+      "occurredAt": "2026-10-15T16:00:00Z",
+      "investigationId": null,
+      "reportState": "ready",
+      "needsReview": false,
+      "demoOnly": true,
+      "summary": "This additional FA3 sample demonstrates list navigation and report layout. A detailed investigation report has not been included.",
+      "limitations": "No supporting evidence was included in this additional fixture. No factual answer or supported attack chain can be produced.",
+      "chain": null,
+      "evidence": [],
+      "answers": []
+    },
+    {
+      "id": "INC-DEMO-005",
+      "title": "Permission reconnaissance review",
+      "severity": "Medium",
+      "status": "Closed",
+      "occurredAt": "2026-10-17T11:47:00Z",
+      "investigationId": null,
+      "reportState": "ready",
+      "needsReview": false,
+      "demoOnly": true,
+      "summary": "This additional FA3 sample demonstrates list navigation and report layout. A detailed investigation report has not been included.",
+      "limitations": "No supporting evidence was included in this additional fixture. No factual answer or supported attack chain can be produced.",
+      "chain": null,
+      "evidence": [],
+      "answers": []
+    },
+    {
+      "id": "INC-DEMO-006",
+      "title": "Console sign-in review",
+      "severity": "Low",
+      "status": "Closed",
+      "occurredAt": "2026-10-17T13:10:00Z",
+      "investigationId": null,
+      "reportState": "ready",
+      "needsReview": false,
+      "demoOnly": true,
+      "summary": "This additional FA3 sample demonstrates list navigation and report layout. A detailed investigation report has not been included.",
+      "limitations": "No supporting evidence was included in this additional fixture. No factual answer or supported attack chain can be produced.",
+      "chain": null,
+      "evidence": [],
+      "answers": []
+    }
+  ]
+}
