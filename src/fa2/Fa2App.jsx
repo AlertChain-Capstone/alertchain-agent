@@ -1,4 +1,5 @@
 import { useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router'
 import { advance, alertById, config, formatTime, initialInvestigations, isBelowThreshold, newInvestigation } from './fa2Data'
 import StartInvestigation, { BelowThresholdDialog } from './StartInvestigation'
 import InvestigationHeader from './InvestigationHeader'
@@ -11,9 +12,22 @@ const STEP_DELAY = 1500
 const SAVE_DELAY = 800
 
 // `ref` lets the FA1 Alert Detail buttons hand an alert or incident to FA2.
-export default function Fa2App({ ref }) {
+export default function Fa2App({ ref, route, active }) {
+  const navigate = useNavigate()
   const [investigations, setInvestigations] = useState(initialInvestigations)
-  const [view, setView] = useState({ name: 'home' })
+  const chainInvestigation = route?.view === 'chain' ? investigations.find((inv) => inv.incidentId === route.params.id) : null
+  const view = route && route.view !== 'home'
+    ? { ...route.state, name: 'investigation', id: chainInvestigation?.id ?? route.params.id, tab: route.view === 'chain' ? 'chain' : (route.state?.tab ?? 'overview') }
+    : { name: 'home' }
+
+  function setView(next) {
+    const value = typeof next === 'function' ? next(view) : next
+    const inv = investigations.find((item) => item.id === value.id)
+    const path = value.name === 'home' ? '/investigations'
+      : value.tab === 'chain' && inv?.incidentId ? `/incidents/${inv.incidentId}/chain`
+      : `/investigations/${value.id}`
+    navigate(path, { state: value })
+  }
   const [startScenario, setStartScenario] = useState('normal')
   const [closeoutScenario, setCloseoutScenario] = useState('normal')
   const [message, setMessage] = useState('')
@@ -39,8 +53,8 @@ export default function Fa2App({ ref }) {
 
   useEffect(() => {
     openIdRef.current = view.name === 'investigation' ? view.id : null
-    headingRef.current?.focus()
-  }, [view.name, view.id, view.tab])
+    if (active) headingRef.current?.focus()
+  }, [view.name, view.id, view.tab, active])
 
   function update(id, changes) {
     setInvestigations((list) => list.map((inv) => (inv.id === id ? { ...inv, ...(typeof changes === 'function' ? changes(inv) : changes) } : inv)))
@@ -141,7 +155,13 @@ export default function Fa2App({ ref }) {
 
   return (
     <main className="fa1-page fa2-page" id="fa2-content" tabIndex={-1}>
-      {view.name === 'home' || !current ? (
+      {view.name !== 'home' && (!current || (route?.view === 'chain' && !chainInvestigation)) ? (
+        <section>
+          <h1>Investigation unavailable</h1>
+          <p>No investigation is recorded for this address.</p>
+          <Link to="/investigations">Back to investigations</Link>
+        </section>
+      ) : view.name === 'home' ? (
         <StartInvestigation
           headingRef={headingRef}
           investigations={investigations}
@@ -152,6 +172,7 @@ export default function Fa2App({ ref }) {
         />
       ) : (
         <>
+          {current.incidentId && <Link to={`/incidents/${current.incidentId}`} className="fa2-report-link">Open incident report {current.incidentId}</Link>}
           <InvestigationHeader
             headingRef={headingRef}
             inv={current}
@@ -196,7 +217,7 @@ export default function Fa2App({ ref }) {
           )}
         </>
       )}
-      {lowSeverityAlert && (
+      {active && lowSeverityAlert && (
         <BelowThresholdDialog
           alert={lowSeverityAlert}
           onCancel={() => setLowSeverityAlert(null)}

@@ -17,15 +17,15 @@ The planned system collects Amazon GuardDuty findings and selected AWS CloudTrai
 
 ## Inception UI Prototype
 
-The repository currently includes the FA1 frontend prototype using fictional mock data. It is a runnable slice of the planned team application.
+The repository includes the FA1, FA2, and FA3 frontend prototypes using fictional mock data. The shared React Router shell starts on the FA3 Dashboard and connects all three functional areas.
 
-Implemented FA1 screens cover security signal sources, monitored event configuration, normalized alert browsing, and alert details. A reusable temporary layout provides the AlertChain Agent header and sidebar.
+Implemented FA1 screens cover security signal sources, monitored event configuration, normalized alert browsing, and alert details. The shared layout provides the AlertChain Agent header and sidebar.
 
-The FA2 investigation prototype (Investigation View, Reasoning Trace, Attack Chain) is integrated through the shared sidebar and the alert-detail **Investigate** and **Open incident** buttons. The incident dashboard and Ask-the-Agent views (FA3) remain planned work. Live AWS ingestion, AI investigations, and backend integration are also planned.
+The FA2 investigation prototype (Investigation View, Reasoning Trace, Attack Chain) is integrated through the sidebar and alert-detail **Investigate** button. **Open incident** now opens the matching FA3 report. FA3 includes the dashboard, incident list, report, Ask the Agent, and stored-evidence viewer. Live AWS ingestion, AI investigations, and backend integration remain planned work.
 
 ## Technology
 
-- Current frontend: React 19, plain CSS, Vite 8, and ESLint 10
+- Current frontend: React 19, React Router 7, plain CSS, Vite 8, and ESLint 10
 - Planned backend: FastAPI
 - Planned cloud services: Amazon GuardDuty, AWS CloudTrail,
   Amazon EventBridge, AWS Lambda, Amazon API Gateway,
@@ -54,6 +54,29 @@ The scripts in `package.json` are:
 | `npm run lint` | Run `eslint .`. |
 | `npm run build` | Run `vite build`, generating the frontend bundle in `dist/`. |
 | `npm run preview` | Run `vite preview` to serve a previously built bundle locally. Run `npm run build` first, then open the address printed by preview. |
+| `npm test` | Verify incident ordering, fixture compatibility, and answer/citation boundaries. |
+| `npm run test:e2e` | Run Playwright browser tests; starts Vite on port 5178 automatically. |
+| `npm run test:optional` | Build isolated copies with each FA folder missing to check the shell's placeholder support. |
+
+For browser tests, install Chromium once with `npx playwright install chromium`. Alternatively, use installed Microsoft Edge: in PowerShell run `$env:PW_CHANNEL = 'msedge'` before `npm run test:e2e`. The application itself does not need Playwright.
+
+## Shared App Shell — M6
+
+The start page is **Dashboard**. The sidebar has three sections: **Dashboard & Incidents** (FA3), **Alerts & Sources** (FA1), and **Investigations** (FA2).
+
+React Router uses hash URLs so deep links also work on a static host without server rewrite rules. Refresh, Back, and Forward use the URL to select the screen.
+
+| Area | Routes (append after `#`) |
+| --- | --- |
+| FA1 | `/sources`, `/alerts`, `/alerts/:id` |
+| FA2 | `/investigations`, `/investigations/:id`, `/incidents/:id/chain` |
+| FA3 | `/`, `/incidents`, `/incidents/:id`, `/incidents/:id/ask` |
+
+Each `src/faX/routes.jsx` exports a default object with `Component` and a `routes` array of `{ path, view }` entries. The shell discovers these modules through Vite's glob imports. `src/shared/areas.js` supplies the sidebar and fallback route ownership. If a functional area's folder or route module is missing, its links show an integration placeholder while the other available areas still load. Dependencies of an available module, such as shared mock files, must still be present.
+
+The existing alert badge and FA1/FA2 base styles live in `src/shared/`; FA1 retains compatibility imports. This removes FA2's dependency on the optional FA1 component folder without changing its screen styling.
+
+Each area's root component stays mounted. FA1's filters/configuration, FA2's investigation/close-out state, and FA3's list filters and per-incident question/answer survive switching areas. Temporary screen demos reset when that screen is left. A full refresh restores the fixtures. Unknown routes or identifiers show an unavailable page instead of substituting another record.
 
 ## Current FA1 Features
 
@@ -92,7 +115,7 @@ Source scenarios apply to both cards; recoveries operate independently. Switchin
 
 FA2 (Agentic Reasoning & Correlation, owner: Harneet Kaur) lives in `src/fa2/` with fixtures in `src/mock/fa2.json`. It reads the FA1 alert fixtures read-only.
 
-Open it with **Investigations & Incidents** in the sidebar (or `http://localhost:5173/#/investigations`); **Alerts & Sources** goes back to FA1. From an FA1 alert's details, **Investigate** starts or opens that alert's investigation (with the same threshold and already-running/closed rules) and **Open incident** opens the investigation behind the incident.
+Open it with **Investigations** in the sidebar (or `http://localhost:5173/#/investigations`); **Alerts & Sources** goes back to FA1. From an FA1 alert's details, **Investigate** starts or opens that alert's investigation (with the same threshold and already-running/closed rules), and **Open incident** opens the FA3 incident report. FA2's **Open incident report** link connects the investigation to FA3, and the report links back to the investigation and attack chain.
 
 The agent is simulated: new investigations add one reasoning step about every second and finish with a verdict, confidence score and recommended next steps. No AWS, Bedrock or backend calls are made.
 
@@ -135,13 +158,51 @@ Each row maps to a use case extension in the shared Visual Paradigm project and 
 
 State is held in React and resets when the page is refreshed. Switching between FA1 and FA2 in the sidebar keeps each area's state.
 
+## FA3 Dashboard & Ask-the-Agent Prototype — M16
+
+Owner: Mattias Kerner. Screens live in `src/fa3/`, and all FA3 incident records, stored evidence, source snapshots, and canned answers live in `src/mock/fa3.json`. The feature branch is `feature/fa3-screens`.
+
+- **Dashboard:** incident counts, incidents needing attention, source-health snapshot, and navigation to all areas.
+- **Incident list:** combined ID/title search, severity and status filters, highest-severity/newest-first ordering, and four records per page. Filters and page survive report review.
+- **Incident report:** selected incident identity, status, findings, recorded timeline, evidence, attack-chain explanation, and uncertainty. Generating, unavailable, failed-load, and human-review states remain distinct.
+- **Ask the Agent:** incident-specific suggested questions, text input, pending state, canned responses, and citations. Whitespace questions are rejected. Unsupported questions produce a limitation, and candidate answers with invalid citations are withheld. A timeout preserves the question and offers Retry.
+- **Evidence inspection:** select a citation to open an accessible dialog with source, event time, principal, raw JSON, and a link to the normalized FA1 alert. Escape/Close returns focus to the citation. Missing or foreign evidence is never substituted; temporary errors can be retried, and large previews can be read in bounded segments.
+
+`INC-001` and `INC-002` correspond to the existing `INV-001` and `INV-002`. FA3 preserves the repo's `ALT-*` identifiers, timestamps, principals, and raw events, which differ from older VP illustration data. `INC-001`'s title describes the demonstration scenario; the report explicitly distinguishes the candidate chain from proof that the same key or actor caused every event. Its first two events share an IP but have different principals/keys, and its GuardDuty event has another principal/IP.
+
+Four additional records named `INC-DEMO-*` demonstrate pagination, closed incidents, and generating/limited reports. They are labelled as FA3-only fixtures and do not pretend to have shared FA2 investigations. Source-health and report data are fixed snapshots: an FA1 recovery simulation or FA2 close-out does not rewrite FA3's fixtures.
+
+### FA3 Demo Guide
+
+Open **Demo scenarios** on the relevant screen to expose its selector. Unless stated otherwise, start from `#/incidents/INC-001`. This guide supports a later team rehearsal; it does not mean M17 has been completed.
+
+| # | Screen or state | Steps to display it |
+| --- | --- | --- |
+| 1 | Dashboard | Open `#/`. **View all incidents** opens the list; **Needs human review** applies that status filter. |
+| 2 | Incident list, filters, pagination | Open `#/incidents`. Select Severity **High** and Status **Open**. Clear filters, then **Next** to see the remaining records. |
+| 3 | No matching incidents | Set Severity to **Critical**, or search `nothing-matches`. **Clear filters** restores the sample list. |
+| 4 | Empty portfolio / load failure | **Incident list demo scenario → No incidents available** or **Incident load failed**. Empty Refresh keeps the empty fixture; error Retry recovers while keeping filters. |
+| 5 | Report and evidence | Open `INC-001`; inspect a timeline evidence item. **View investigation** opens `INV-001`; **Open attack-chain graph** opens FA2's matching graph. |
+| 6 | Report generating | **Incident report demo scenario → Report generating**, or open `INC-DEMO-003`. **Refresh report** retains generating state; it never invents a completed report. |
+| 7 | Failed report / unavailable incident | Choose **Report load failed**, then **Retry report**. Choose **Incident unavailable**, or navigate to an unknown incident ID, to see the unavailable state. |
+| 8 | Human review / no chain | Open `INC-002`, or use **Needs human review** / **No supported attack chain** in the report selector. |
+| 9 | Cited answer | **Ask the Agent → What shows that logging was disabled? → Ask question**. Pending appears briefly, then an answer with **View citation E2**. |
+| 10 | Empty / out-of-scope / unsupported question | Submit whitespace; ask `Disable logging now`; or ask an unscripted question. Each produces an explanation without invented citations. |
+| 11 | Agent timeout and retry | **Answer demo scenario → Agent timeout**, submit a suggested question, then **Retry answer**. The same question receives its canned answer. |
+| 12 | Insufficient evidence / invalid candidate | Choose **Insufficient evidence** or **Candidate has invalid citations**, then submit a suggested question. No supported answer is presented. |
+| 13 | Partial answer | On `INC-001`, choose **What disabled logging, and was data copied?** with the normal scenario. The logging claim is cited and the exfiltration question remains explicitly unanswered. |
+| 14 | Incident becomes unavailable | **Answer demo scenario → Incident becomes unavailable**. A route back to the list appears and no answer is produced. |
+| 15 | Evidence states | After obtaining a normal answer, set **Evidence demo scenario** to missing, temporary error, foreign citation, or segmented preview, then select **View citation E2**. Error Retry succeeds; the preview's Next/Previous controls preserve the evidence ID. |
+| 16 | Return paths and isolation | Close evidence, return to the report, then reopen Ask. The question and answer remain. Switch to `INC-002`: it has its own question/answer context. |
+
+Only the suggested questions (ignoring case, surrounding whitespace, and trailing punctuation) have canned factual answers. This is a UI prototype, not an AI question-answering service. No AWS, Bedrock, or backend calls are made.
+
 ## Current Limitations and Planned Work
 
 - Data is fictional. Connection tests, configuration, recovery, and save-failure actions are simulated; source scenarios do not alter the alert fixtures or generate live events.
 - State is held locally in React and resets on refresh. There is no server-side persistence or authentication; “SOC Analyst” is a prototype label.
-- The Dashboard (FA3) is not built yet and stays disabled in the sidebar. **Investigate** hands the alert to FA2's simulated investigation. **Open incident** shows the FA2 investigation behind the incident until FA3's incident report exists.
-- `Fa1Layout` is the shared shell for all functional areas; `App.jsx` switches areas with hash routes (`#/` for FA1, `#/investigations` for FA2) and keeps both areas mounted so their state survives switching. The full team application and planned backend architecture are not complete.
-- Backend services, live AWS ingestion, AI reasoning/correlation, and evidence-based incident reports are planned work, not implemented features of this prototype.
+- `src/shared/AppLayout.jsx` and React Router provide the team shell. The previous FA1-only `#/` entry now opens Dashboard; use `#/sources` for FA1.
+- Backend services, live AWS ingestion, AI reasoning/correlation, and generated incident reports remain planned work. Displayed reports and answers are static fixture content.
 - Copy JSON depends on browser clipboard support and permission. If copying fails, the JSON remains available for manual copying.
 
 ## Project Resources
