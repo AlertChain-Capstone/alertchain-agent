@@ -76,3 +76,23 @@ Findings for the backend:
 | Region | us-east-1 |
 | Worked | **No.** `AccessDeniedException: Your account is currently being verified…` (a new-account hold, not a code or model problem) |
 | Tokens used / cost | 0 / $0.00 |
+
+## LLM gateway (H12)
+
+`BedrockClient` (`client.py`) wraps bedrock-runtime `converse` for the investigation agent in
+`backend/agent/`. `ConverseRequestBuilder`, `ToolSchemaMapper` and `ModelResponseParser` build
+the request, map tool definitions, and parse the response. The parser moves Nova's
+`<thinking>…</thinking>` text out of the visible answer.
+
+| Env var | Default |
+|---|---|
+| `BEDROCK_MODEL_ID` | `us.amazon.nova-micro-v1:0` |
+| `BEDROCK_REGION` | `us-east-2` |
+
+`maxTokens` is 600. Credentials come from the normal boto3 chain (e.g. `AWS_PROFILE`).
+
+Tests use a fake bedrock-runtime client, so they make no AWS calls and do not need boto3:
+
+```
+uv run --no-project --python 3.12 --with pytest python -m pytest backend/tests -v
+```
