@@ -26,3 +26,9 @@ dist-ssr
 # Browser test output
 playwright-report/
 test-results/
+
+# Python / secrets
+.env
+.env.*
+__pycache__/
+*.pyc
