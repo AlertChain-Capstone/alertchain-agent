@@ -96,3 +96,26 @@ Tests use a fake bedrock-runtime client, so they make no AWS calls and do not ne
 ```
 uv run --no-project --python 3.12 --with pytest --with fastapi --with httpx python -m pytest backend/tests -v
 ```
+
+## Investigations API and launcher (H13)
+
+`backend/api/investigations.py` exposes `POST /investigations` (`{"alertId": "A-1"}` →
+202 `{"investigationId": ...}`) and `GET /investigations/{investigationId}` (status,
+steps, evidence, conclusion). POST saves a RUNNING investigation and hands it to an
+`InvestigationLauncher` (`backend/agent/launcher.py`):
+
+| `INVESTIGATION_LAUNCHER` | Launcher | Use |
+|---|---|---|
+| `local` (default outside Lambda) | `LocalLauncher` – worker thread in this process | local dev, tests |
+| `lambda` (default inside Lambda) | `LambdaSelfInvokeLauncher` – async `lambda.invoke` of `AWS_LAMBDA_FUNCTION_NAME` with `{"type": "investigation_job", "investigationId": ...}` | deployed API |
+
+The Lambda handler routes `investigation_job` events to
+`agent.handle_investigation_job(event)`. It is idempotent: an investigation that is no
+longer RUNNING (a redelivered or retried event) is skipped.
+
+**The Lambda launcher needs shared storage.** The job runs in a different execution
+environment, so the in-memory repositories used today are not visible to it. Use
+`INVESTIGATION_LAUNCHER=local` until the repositories are backed by DynamoDB.
+
+Frontend (FA2): set `VITE_API_BASE_URL` to the API URL for live mode. The mock prototype
+is used when `VITE_USE_MOCK=true` or no API URL is set.

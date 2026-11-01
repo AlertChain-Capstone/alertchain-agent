@@ -1,11 +1,8 @@
 """HTTP API for investigations.
 
-POST /investigations saves a RUNNING Investigation and starts AgentOrchestrator.run in the
-background (FastAPI BackgroundTasks, run in Starlette's threadpool), returning 202 at once.
-GET /investigations/{investigationId} returns status, steps, evidence and conclusion.
-
-Background runs live in this process: a restart loses in-flight runs. A durable queue
-should replace BackgroundTasks before production.
+POST /investigations saves a RUNNING Investigation and hands it to an InvestigationLauncher
+(see agent.launcher), returning 202 at once. GET /investigations/{investigationId} returns
+status, steps, evidence and conclusion.
 """
 
 from __future__ import annotations
@@ -16,28 +13,23 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Path, status
+from fastapi import APIRouter, HTTPException, Path, status
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from agent import (
-    AgentOrchestrator,
-    CheckActorBaselineTool,
-    CreateIncidentTool,
-    GetRelatedEventsTool,
+    AgentRuntime,
+    InvestigationLauncher,
+    LauncherError,
     LLMGateway,
     StepLimiter,
-    ToolRegistry,
+    build_in_memory_runtime,
+    default_runtime,
 )
 from domain.investigation import (
     Conclusion,
     Evidence,
     EvidenceRepository,
-    InMemoryActorBaselineRepository,
-    InMemoryEvidenceRepository,
-    InMemoryIncidentRepository,
-    InMemoryInvestigationRepository,
-    InMemorySecurityEventRepository,
     Investigation,
     InvestigationRepository,
     InvestigationStatus,
@@ -141,13 +133,13 @@ class InvestigationsRouter:
         investigations: InvestigationRepository,
         evidence: EvidenceRepository,
         alerts: SecurityEventRepository,
-        orchestrator: AgentOrchestrator,
+        launcher: InvestigationLauncher,
         id_factory: Callable[[], str] = _new_investigation_id,
     ) -> None:
         self._investigations = investigations
         self._evidence = evidence
         self._alerts = alerts
-        self._orchestrator = orchestrator
+        self._launcher = launcher
         self._id_factory = id_factory
 
         self.router = APIRouter(prefix="/investigations", tags=["investigations"])
@@ -165,15 +157,30 @@ class InvestigationsRouter:
             response_model=InvestigationOut,
         )
 
-    def start_investigation(
-        self, body: StartInvestigationRequest, background_tasks: BackgroundTasks
-    ) -> StartInvestigationResponse:
+    @classmethod
+    def from_runtime(
+        cls, runtime: AgentRuntime, id_factory: Callable[[], str] = _new_investigation_id
+    ) -> InvestigationsRouter:
+        return cls(runtime.investigations, runtime.evidence, runtime.alerts, runtime.launcher,
+                   id_factory)
+
+    def start_investigation(self, body: StartInvestigationRequest) -> StartInvestigationResponse:
         alert_id = body.alert_id
         if self._alerts.get_alert(alert_id) is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, f"alert {alert_id} not found")
         inv = Investigation(id=self._id_factory(), alert_id=alert_id)
         self._investigations.save(inv)
-        background_tasks.add_task(self._run, inv.id)
+        try:
+            self._launcher.launch(inv.id)
+        except LauncherError as exc:
+            # Never leave an investigation RUNNING when nothing will ever run it.
+            logger.error("could not launch investigation %s: %s", inv.id, exc)
+            inv.fail(f"could not start the investigation run: {exc}")
+            self._investigations.save(inv)
+            raise HTTPException(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                f"investigation {inv.id} could not be started",
+            ) from exc
         return StartInvestigationResponse(investigation_id=inv.id)
 
     def get_investigation(
@@ -196,18 +203,6 @@ class InvestigationsRouter:
             conclusion=_conclusion_out(inv.conclusion) if inv.conclusion else None,
         )
 
-    def _run(self, investigation_id: str) -> None:
-        """Background task. The orchestrator handles model and tool errors itself; this
-        catches anything unexpected so the investigation never stays RUNNING forever."""
-        try:
-            self._orchestrator.run(investigation_id)
-        except Exception as exc:
-            logger.exception("investigation %s crashed", investigation_id)
-            inv = self._investigations.get(investigation_id)
-            if inv is not None and inv.status is InvestigationStatus.RUNNING:
-                inv.fail(f"internal error: {type(exc).__name__}")
-                self._investigations.save(inv)
-
 
 def build_in_memory_router(
     llm: LLMGateway,
@@ -215,22 +210,16 @@ def build_in_memory_router(
     related_events: dict[str, list[dict[str, Any]]] | None = None,
     baselines: dict[str, dict[str, Any]] | None = None,
     limiter_factory: Callable[[], StepLimiter] = StepLimiter,
+    launcher_factory: Callable[[Callable[[str], Any]], InvestigationLauncher] | None = None,
     id_factory: Callable[[], str] = _new_investigation_id,
 ) -> InvestigationsRouter:
-    """Wires InvestigationsRouter to in-memory repositories (until real storage exists)."""
-    investigations = InMemoryInvestigationRepository()
-    evidence = InMemoryEvidenceRepository()
-    events = InMemorySecurityEventRepository(alerts, related_events)
-    registry = ToolRegistry([
-        GetRelatedEventsTool(events),
-        CheckActorBaselineTool(InMemoryActorBaselineRepository(baselines)),
-        CreateIncidentTool(InMemoryIncidentRepository()),
-    ])
-    orchestrator = AgentOrchestrator(
-        llm=llm,
-        registry=registry,
-        investigations=investigations,
-        evidence=evidence,
-        limiter_factory=limiter_factory,
+    """InvestigationsRouter on in-memory repositories (until real storage exists)."""
+    runtime = build_in_memory_runtime(
+        llm, alerts, related_events, baselines, limiter_factory, launcher_factory
     )
-    return InvestigationsRouter(investigations, evidence, events, orchestrator, id_factory)
+    return InvestigationsRouter.from_runtime(runtime, id_factory)
+
+
+def default_router() -> InvestigationsRouter:
+    """Router on the process-wide runtime shared with handle_investigation_job."""
+    return InvestigationsRouter.from_runtime(default_runtime())

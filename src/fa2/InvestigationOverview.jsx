@@ -19,7 +19,7 @@ export default function InvestigationOverview({ inv, closeoutScenario, onCloseou
         <section className="fa1-card" aria-labelledby="fa2-progress-title">
           <h2 id="fa2-progress-title">Progress</h2>
           <dl className="fa1-stats fa2-stats">
-            <div><dt>Steps</dt><dd>{inv.trace.length} / {config.maxSteps}</dd></div>
+            <div><dt>Steps</dt><dd>{inv.trace.length} / {inv.maxSteps ?? config.maxSteps}</dd></div>
             <div><dt>Evidence</dt><dd>{inv.evidence.length} {inv.evidence.length === 1 ? 'item' : 'items'}</dd></div>
             <div><dt>Started</dt><dd>{formatTime(inv.startedAt)}</dd></div>
             <div><dt>Finished</dt><dd>{done ? formatTime(inv.finishedAt) : '—'}</dd></div>
@@ -47,8 +47,14 @@ export default function InvestigationOverview({ inv, closeoutScenario, onCloseou
         {!done ? (
           <>
             <h2 id="fa2-verdict-title">Verdict &amp; next steps</h2>
-            <p className="fa2-dialog-text">No verdict yet. The verdict and recommended next steps appear here when the investigation finishes.</p>
+            <p className="fa2-dialog-text">
+              {inv.status === 'review' || inv.status === 'failed'
+                ? 'No verdict. The agent stopped without a verdict it could back with evidence – review the trace and decide yourself.'
+                : 'No verdict yet. The verdict and recommended next steps appear here when the investigation finishes.'}
+            </p>
           </>
+        ) : inv.source === 'api' ? (
+          <LiveVerdict conclusion={inv.conclusion} onOpenTrace={() => onOpenTrace()} />
         ) : (
           <>
             <h2 id="fa2-verdict-title" className="fa2-eyebrow">Verdict</h2>
@@ -93,6 +99,31 @@ export default function InvestigationOverview({ inv, closeoutScenario, onCloseou
         />
       )}
     </div>
+  )
+}
+
+const SEVERITY_TONE = { LOW: 'success', MEDIUM: 'warning', HIGH: 'danger', CRITICAL: 'danger' }
+
+// Verdict from the live agent: severity and a LOW/MEDIUM/HIGH confidence, with every
+// attack-chain stage citing evidence IDs.
+function LiveVerdict({ conclusion, onOpenTrace }) {
+  return (
+    <>
+      <h2 id="fa2-verdict-title" className="fa2-eyebrow">Verdict</h2>
+      <div className="fa2-verdict-row">
+        <span className={`fa1-badge fa1-badge-${SEVERITY_TONE[conclusion.severity] ?? 'warning'}`}>{conclusion.severity} severity</span>
+        <strong>Confidence {conclusion.confidence}</strong>
+      </div>
+      <p className="fa2-summary">{conclusion.summary}</p>
+      <h3 className="fa2-eyebrow">Attack chain</h3>
+      <ol>
+        {conclusion.attackChain.map((stage) => (
+          <li key={stage.description}>{stage.description} <span className="fa1-muted">({stage.evidenceIds.join(', ')})</span></li>
+        ))}
+      </ol>
+      <p className="fa1-muted">Cites {conclusion.evidenceIds.join(', ')}.</p>
+      <button type="button" className="fa2-link" onClick={onOpenTrace}>Open reasoning trace</button>
+    </>
   )
 }
 

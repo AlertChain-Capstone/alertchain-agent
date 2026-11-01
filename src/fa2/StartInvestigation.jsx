@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import AlertBadge from '../shared/AlertBadge'
-import { alerts, alertById, config, formatDateTime } from './fa2Data'
+import { alerts, alertOrPlaceholder, config, formatDateTime } from './fa2Data'
 import StatusChip from './StatusChip'
 
 const SCENARIOS = {
@@ -9,7 +9,7 @@ const SCENARIOS = {
   cloudtrail: { label: 'CloudTrail query denied', help: 'The first CloudTrail query fails; the failure is recorded and the agent continues with other sources.' },
 }
 
-export default function StartInvestigation({ headingRef, investigations, scenario, onScenarioChange, onInvestigate, onOpen }) {
+export default function StartInvestigation({ headingRef, investigations, scenario, onScenarioChange, onInvestigate, onOpen, live = false, startingAlertId = null, startError = '' }) {
   const latestFor = (alertId) => [...investigations].reverse().find((inv) => inv.alertId === alertId)
 
   return (
@@ -17,9 +17,14 @@ export default function StartInvestigation({ headingRef, investigations, scenari
       <p className="fa1-breadcrumb">Investigations &amp; Incidents</p>
       <h1 id="fa2-home-heading" ref={headingRef} tabIndex={-1}>Investigations</h1>
       <p className="fa1-description">Start an investigation from an alert, or open an existing one.</p>
-      <p className="fa1-demo">Inception prototype — fictional data and a simulated agent (no AWS or Bedrock calls)</p>
+      {live ? (
+        <p className="fa1-demo">Live mode — investigations run on the AlertChain agent (Amazon Bedrock)</p>
+      ) : (
+        <p className="fa1-demo">Inception prototype — fictional data and a simulated agent (no AWS or Bedrock calls)</p>
+      )}
+      {startError && <div className="fa2-banner fa2-banner-danger" role="alert"><p>{startError}</p></div>}
 
-      <div className="fa1-scenario-controls">
+      {!live && <div className="fa1-scenario-controls">
         <div className="fa1-filter">
           <label htmlFor="fa2-start-scenario">Investigation demo scenario</label>
           <select id="fa2-start-scenario" value={scenario} aria-describedby="fa2-start-scenario-help" onChange={(e) => onScenarioChange(e.target.value)}>
@@ -27,7 +32,7 @@ export default function StartInvestigation({ headingRef, investigations, scenari
           </select>
         </div>
         <p id="fa2-start-scenario-help" className="fa1-muted">{SCENARIOS[scenario].help} Applies to investigations you start next.</p>
-      </div>
+      </div>}
 
       <section className="fa1-card fa2-section" aria-labelledby="fa2-alerts-title">
         <div className="fa1-card-heading">
@@ -49,7 +54,11 @@ export default function StartInvestigation({ headingRef, investigations, scenari
                     <td>{alert.principal}</td>
                     <td><AlertBadge kind="severity" value={alert.severity} /></td>
                     <td>{inv ? <button type="button" className="fa2-link" onClick={() => onOpen(inv.id)}>{inv.id}</button> : <span className="fa1-muted">None</span>} {inv && <StatusChip inv={inv} />}</td>
-                    <td><button type="button" className="fa1-primary" onClick={() => onInvestigate(alert)}>Investigate</button></td>
+                    <td>
+                      <button type="button" className="fa1-primary" disabled={startingAlertId != null} onClick={() => onInvestigate(alert)}>
+                        {startingAlertId === alert.id ? 'Starting…' : 'Investigate'}
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
@@ -65,13 +74,17 @@ export default function StartInvestigation({ headingRef, investigations, scenari
             <thead><tr><th>Investigation</th><th>Alert</th><th>Status</th><th>Verdict</th><th>Started</th></tr></thead>
             <tbody>
               {[...investigations].reverse().map((inv) => {
-                const alert = alertById(inv.alertId)
+                const alert = alertOrPlaceholder(inv.alertId)
                 return (
                   <tr key={inv.id}>
                     <td><button type="button" className="fa2-link" onClick={() => onOpen(inv.id)}>{inv.id}</button></td>
                     <td>{alert.id} · {alert.eventName}</td>
                     <td><StatusChip inv={inv} /></td>
-                    <td>{inv.verdict ? `${inv.verdict} · ${inv.confidence}%` : <span className="fa1-muted">No verdict yet</span>}</td>
+                    <td>
+                      {inv.verdict ? `${inv.verdict} · ${inv.confidence}%`
+                        : inv.conclusion ? `${inv.conclusion.severity} severity · ${inv.conclusion.confidence} confidence`
+                        : <span className="fa1-muted">No verdict yet</span>}
+                    </td>
                     <td><time dateTime={inv.startedAt}>{formatDateTime(inv.startedAt)}</time></td>
                   </tr>
                 )

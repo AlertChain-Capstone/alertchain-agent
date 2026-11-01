@@ -35,7 +35,8 @@ export default function ReasoningTrace({ inv, filter, focusStep, onClearFilter }
     focusRef.current?.focus()
   }, [])
 
-  const all = demo === 'long' ? longDemoTrace(inv.trace) : inv.trace
+  const live = inv.source === 'api'
+  const all = demo === 'long' && !live ? longDemoTrace(inv.trace) : inv.trace
   const matches = (step) => !filter || [step.query, step.result, step.decision].join(' ').includes(filter)
   const visible = all.filter(matches)
   const collapsed = !filter && !showAll && visible.length > LONG_TRACE
@@ -55,19 +56,31 @@ export default function ReasoningTrace({ inv, filter, focusStep, onClearFilter }
       <section className="fa1-card" aria-labelledby="fa2-trace-title">
         <div className="fa1-card-heading fa2-spread">
           <h2 id="fa2-trace-title">Reasoning trace</h2>
-          <div className="fa1-filter fa2-inline-demo">
-            <label htmlFor="fa2-trace-demo">Trace demo scenario</label>
-            <select id="fa2-trace-demo" value={demo} onChange={(e) => { setDemo(e.target.value); setShowAll(false) }}>
-              <option value="recorded">As recorded</option>
-              <option value="long">Very long trace (24 steps)</option>
-            </select>
-          </div>
+          {!live && (
+            <div className="fa1-filter fa2-inline-demo">
+              <label htmlFor="fa2-trace-demo">Trace demo scenario</label>
+              <select id="fa2-trace-demo" value={demo} onChange={(e) => { setDemo(e.target.value); setShowAll(false) }}>
+                <option value="recorded">As recorded</option>
+                <option value="long">Very long trace (24 steps)</option>
+              </select>
+            </div>
+          )}
         </div>
         <p className="fa1-muted">Steps in time order: what the agent decided to check and why, the tool it used, and what it found.</p>
 
-        {inv.status !== 'done' && (
+        {(inv.status === 'running' || inv.status === 'paused') && (
           <div className="fa2-banner fa2-banner-info" role="status">
             <p>{inv.status === 'paused' ? 'Investigation paused – new steps appear after Retry.' : 'Investigation still running – new steps appear here as the agent works.'}</p>
+          </div>
+        )}
+        {inv.status === 'review' && (
+          <div className="fa2-banner fa2-banner-warning" role="status">
+            <p>Needs human review – {inv.statusReason}. Check the steps and evidence below before deciding.</p>
+          </div>
+        )}
+        {inv.status === 'failed' && (
+          <div className="fa2-banner fa2-banner-danger" role="alert">
+            <p>Investigation failed – {inv.statusReason}. Steps recorded before the failure are shown below.</p>
           </div>
         )}
         {filter && (
@@ -131,7 +144,7 @@ function StepDetails({ step, onOpenLink }) {
           <pre className="fa1-raw-json" tabIndex={0}>{bigResult(step)}</pre>
         </>
       ) : (
-        <pre className="fa1-raw-json">{step.result}</pre>
+        <pre className="fa1-raw-json">{step.raw ?? step.result}</pre>
       )}
       <p className="fa1-muted">
         Evidence produced: {step.evidence.length ? step.evidence.join(', ') : 'none'}

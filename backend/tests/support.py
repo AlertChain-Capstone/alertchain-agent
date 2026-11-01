@@ -152,3 +152,29 @@ def make_harness(runtime: FakeBedrockRuntime,
     )
     return Harness(runtime, orchestrator, investigations, evidence, incidents,
                    [t.name for t in registry.tools])
+
+
+class InlineExecutor:
+    """concurrent.futures-style executor that runs the task immediately, so a test sees
+    the finished run as soon as launch() returns."""
+
+    def __init__(self) -> None:
+        self.submitted: list[tuple[Any, ...]] = []
+
+    def submit(self, fn: Callable[..., Any], *args: Any) -> None:
+        self.submitted.append(args)
+        fn(*args)
+
+
+def make_runtime(runtime: FakeBedrockRuntime, launcher_factory=None):
+    """In-memory AgentRuntime seeded with the A-1 scenario. Defaults to a LocalLauncher on
+    an InlineExecutor."""
+    from agent import LocalLauncher, build_in_memory_runtime
+
+    return build_in_memory_runtime(
+        BedrockClient(BedrockSettings(), runtime_client=runtime),
+        alerts=ALERTS,
+        related_events=RELATED_EVENTS,
+        baselines=BASELINES,
+        launcher_factory=launcher_factory or (lambda run: LocalLauncher(run, InlineExecutor())),
+    )
