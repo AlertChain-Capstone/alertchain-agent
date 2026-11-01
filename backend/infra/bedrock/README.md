@@ -94,5 +94,5 @@ the request, map tool definitions, and parse the response. The parser moves Nova
 Tests use a fake bedrock-runtime client, so they make no AWS calls and do not need boto3:
 
 ```
-uv run --no-project --python 3.12 --with pytest python -m pytest backend/tests -v
+uv run --no-project --python 3.12 --with pytest --with fastapi --with httpx python -m pytest backend/tests -v
 ```
