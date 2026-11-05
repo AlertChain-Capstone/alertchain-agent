@@ -13,6 +13,10 @@ export const config = {
 
 export const alerts = fa1.alerts
 export const alertById = (id) => alerts.find((alert) => alert.id === id)
+// Live investigations can reference alerts that are not in the FA1 fixtures.
+export const alertOrPlaceholder = (id) => alertById(id) ?? {
+  id, title: '', eventName: '—', principal: '—', resource: '—', severity: '—', occurredAt: null, source: '',
+}
 
 const SEVERITY_RANK = { Low: 1, Medium: 2, High: 3 }
 export const isBelowThreshold = (alert) =>
@@ -30,11 +34,14 @@ export function formatDateTime(iso) {
 export function statusOf(inv) {
   if (inv.resolution) return { label: `Closed · ${inv.resolution.type}`, tone: inv.resolution.type === 'True positive' ? 'danger' : 'success' }
   if (inv.status === 'paused') return { label: 'Paused', tone: 'warning' }
+  if (inv.status === 'review') return { label: 'Needs human review', tone: 'warning' }
+  if (inv.status === 'failed') return { label: 'Failed', tone: 'danger' }
   if (inv.status === 'running') {
     const failed = inv.trace.filter((step) => step.failed).length
     return failed ? { label: `Running · ${failed} step failed`, tone: 'warning' } : { label: 'Running', tone: 'info' }
   }
   if (needsReview(inv)) return { label: 'Needs human review', tone: 'warning' }
+  if (inv.source === 'api') return { label: 'Completed', tone: 'success' }
   return { label: 'Investigation done · Alert open', tone: 'info' }
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { advance, alertById, config, formatTime, initialInvestigations, isBelowThreshold, newInvestigation } from './fa2Data'
+import { advance, alertById, alertOrPlaceholder, config, formatTime, initialInvestigations, isBelowThreshold, newInvestigation } from './fa2Data'
+import { createInvestigationsApi, fromApiInvestigation, isMockMode, pendingApiInvestigation } from './api'
 import StartInvestigation, { BelowThresholdDialog } from './StartInvestigation'
 import InvestigationHeader from './InvestigationHeader'
 import InvestigationOverview from './InvestigationOverview'
@@ -10,11 +11,14 @@ import './fa2.css'
 
 const STEP_DELAY = 1500
 const SAVE_DELAY = 800
+// Live mode talks to the investigations API; mock mode keeps the simulated agent.
+const LIVE = !isMockMode()
+const api = LIVE ? createInvestigationsApi() : null
 
 // `ref` lets the FA1 Alert Detail buttons hand an alert or incident to FA2.
 export default function Fa2App({ ref, route, active }) {
   const navigate = useNavigate()
-  const [investigations, setInvestigations] = useState(initialInvestigations)
+  const [investigations, setInvestigations] = useState(LIVE ? [] : initialInvestigations)
   const chainInvestigation = route?.view === 'chain' ? investigations.find((inv) => inv.incidentId === route.params.id) : null
   const view = route && route.view !== 'home'
     ? { ...route.state, name: 'investigation', id: chainInvestigation?.id ?? route.params.id, tab: route.view === 'chain' ? 'chain' : (route.state?.tab ?? 'overview') }
@@ -35,21 +39,49 @@ export default function Fa2App({ ref, route, active }) {
   const headingRef = useRef(null)
   const saveTimer = useRef(null)
   const openIdRef = useRef(null)
+  const pollers = useRef(new Map())
+  const followed = useRef(new Set())
+  const [startingAlertId, setStartingAlertId] = useState(null)
+  const [startError, setStartError] = useState('')
+  const [loadingId, setLoadingId] = useState(null)
 
   const current = view.name === 'investigation' ? investigations.find((inv) => inv.id === view.id) : null
-  const anyRunning = investigations.some((inv) => inv.status === 'running')
+  const anyRunning = investigations.some((inv) => inv.status === 'running' && inv.source !== 'api')
 
   // Simulated agent: running investigations gain one reasoning step at a time.
   useEffect(() => {
     if (!anyRunning) return undefined
     const timer = setInterval(() => {
       // INV-003 waits until it is opened, so the "already running" demo stays reproducible.
-      setInvestigations((list) => list.map((inv) => (inv.holdUntilOpened && inv.id !== openIdRef.current ? inv : advance(inv))))
+      setInvestigations((list) => list.map((inv) => (inv.source === 'api' || (inv.holdUntilOpened && inv.id !== openIdRef.current) ? inv : advance(inv))))
     }, STEP_DELAY)
     return () => clearInterval(timer)
   }, [anyRunning])
 
   useEffect(() => () => clearTimeout(saveTimer.current), [])
+
+  // Stop polling when FA2 unmounts. Forgetting the IDs lets a remount (React StrictMode
+  // mounts twice in dev) start polling them again.
+  useEffect(() => {
+    const active = pollers.current
+    const seen = followed.current
+    return () => {
+      active.forEach((controller) => controller.abort())
+      active.clear()
+      seen.clear()
+    }
+  }, [])
+
+  // Live mode: an investigation opened by URL (e.g. after a refresh) is loaded from the API.
+  const missingLiveId = LIVE && view.name === 'investigation' && route?.view === 'investigation' && !current ? view.id : null
+  useEffect(() => {
+    if (missingLiveId && !followed.current.has(missingLiveId)) {
+      setLoadingId(missingLiveId)
+      followLive(missingLiveId)
+    }
+    // followLive only reads refs and stable setters, so it is safe to leave out.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missingLiveId])
 
   useEffect(() => {
     openIdRef.current = view.name === 'investigation' ? view.id : null
@@ -66,7 +98,44 @@ export default function Fa2App({ ref, route, active }) {
     setView({ name: 'investigation', id, tab: 'overview', ...extra })
   }
 
+  // GET /investigations/{id} every 2 s until the run is no longer RUNNING.
+  function followLive(id) {
+    if (followed.current.has(id)) return
+    followed.current.add(id)
+    const controller = new AbortController()
+    pollers.current.set(id, controller)
+    api.poll(id, {
+      signal: controller.signal,
+      onUpdate: (apiInv) => setInvestigations((list) => (list.some((inv) => inv.id === id)
+        ? list.map((inv) => (inv.id === id ? fromApiInvestigation(apiInv, inv) : inv))
+        : [...list, fromApiInvestigation(apiInv)])),
+    }).catch((err) => {
+      if (err.name === 'AbortError' || err.status === 404) return
+      update(id, { status: 'failed', statusReason: `lost contact with the investigations API (${err.message}); refresh to check again` })
+    }).finally(() => {
+      if (controller.signal.aborted) return
+      if (pollers.current.get(id) === controller) pollers.current.delete(id)
+      setLoadingId((value) => (value === id ? null : value))
+    })
+  }
+
+  async function startLive(alert) {
+    setStartError('')
+    setStartingAlertId(alert.id)
+    try {
+      const id = await api.start(alert.id)
+      setInvestigations((list) => [...list, pendingApiInvestigation(id, alert.id)])
+      open(id, { tab: 'trace', notice: { kind: 'started' } })
+      followLive(id)
+    } catch (err) {
+      setStartError(`Could not start an investigation for ${alert.id}: ${err.message}`)
+    } finally {
+      setStartingAlertId(null)
+    }
+  }
+
   function startNew(alert) {
+    if (LIVE) return startLive(alert)
     const id = `INV-${String(investigations.length + 1).padStart(3, '0')}`
     setInvestigations((list) => [...list, newInvestigation(alert, id, startScenario)])
     open(id, { notice: { kind: 'started' } })
@@ -75,7 +144,8 @@ export default function Fa2App({ ref, route, active }) {
   // Start an Alert Investigation – main flow and extensions 3a, 3b, 4a.
   function requestInvestigation(alert, { confirmedLowSeverity = false, reinvestigate = false } = {}) {
     const existing = [...investigations].reverse().find((inv) => inv.alertId === alert.id)
-    if (!reinvestigate && existing) {
+    // A live run that failed can simply be started again.
+    if (!reinvestigate && existing && !(existing.source === 'api' && existing.status === 'failed')) {
       if (existing.status === 'running' || existing.status === 'paused') return open(existing.id, { notice: { kind: 'alreadyRunning' } })
       if (existing.resolution) return open(existing.id, { notice: { kind: 'alreadyClosed' } })
       return open(existing.id, { notice: { kind: 'existing' } })
@@ -151,11 +221,15 @@ export default function Fa2App({ ref, route, active }) {
     if (inv?.pending) resolve(id, inv.pending)
   }
 
-  const alert = current && alertById(current.alertId)
+  const alert = current && alertOrPlaceholder(current.alertId)
 
   return (
     <main className="fa1-page fa2-page" id="fa2-content" tabIndex={-1}>
-      {view.name !== 'home' && (!current || (route?.view === 'chain' && !chainInvestigation)) ? (
+      {view.name !== 'home' && !current && loadingId === view.id ? (
+        <section role="status">
+          <h1>Loading investigation {view.id}…</h1>
+        </section>
+      ) : view.name !== 'home' && (!current || (route?.view === 'chain' && !chainInvestigation)) ? (
         <section>
           <h1>Investigation unavailable</h1>
           <p>No investigation is recorded for this address.</p>
@@ -169,6 +243,9 @@ export default function Fa2App({ ref, route, active }) {
           onScenarioChange={setStartScenario}
           onInvestigate={investigate}
           onOpen={(id) => open(id)}
+          live={LIVE}
+          startingAlertId={startingAlertId}
+          startError={startError}
         />
       ) : (
         <>

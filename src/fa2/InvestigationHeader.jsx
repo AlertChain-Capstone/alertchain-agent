@@ -21,7 +21,9 @@ export default function InvestigationHeader({
   headingRef, inv, alert, tab, notice, startedLabel,
   onTab, onHome, onRetryBedrock, onReinvestigate, onViewFailedStep, onRetrySave,
 }) {
-  const failedStep = inv.status === 'running' ? inv.trace.find((step) => step.failed) : null
+  const live = inv.source === 'api'
+  // The "query was denied" banner describes the mock CloudTrail scenario only.
+  const failedStep = inv.status === 'running' && !live ? inv.trace.find((step) => step.failed) : null
   const title = tab === 'chain' ? `Attack chain · ${inv.incidentId ?? inv.id}` : `Investigation ${inv.id}`
 
   return (
@@ -56,12 +58,22 @@ export default function InvestigationHeader({
             Step {failedStep.n} failed – {failedStep.tool} query was denied ({failedStep.result.split(' – ')[0]}). The failure is in the reasoning trace; the agent continues with other sources.
           </Banner>
         )}
+        {inv.status === 'review' && (
+          <Banner tone="warning" action={tab !== 'trace' && <button type="button" onClick={() => onTab('trace')}>Open reasoning trace</button>}>
+            Needs human review – {inv.statusReason}. The agent could not reach a verdict it can back with evidence; decide yourself.
+          </Banner>
+        )}
+        {inv.status === 'failed' && (
+          <Banner tone="danger" action={tab !== 'trace' && <button type="button" onClick={() => onTab('trace')}>Open reasoning trace</button>}>
+            Investigation failed – {inv.statusReason}.
+          </Banner>
+        )}
         {tab !== 'chain' && needsReview(inv) && !inv.resolution && (
           <Banner tone="warning">
             Low confidence ({inv.confidence}%) – this alert cannot be closed automatically. Check the evidence, then choose a close-out option yourself.
           </Banner>
         )}
-        {tab === 'chain' && inv.status !== 'done' && (
+        {tab === 'chain' && (inv.status === 'running' || inv.status === 'paused') && (
           <Banner tone="info">
             Investigation still running – showing the {inv.chain.nodes.length} {inv.chain.nodes.length === 1 ? 'event' : 'events'} linked so far. The graph updates as new events are linked.
           </Banner>
@@ -80,7 +92,9 @@ export default function InvestigationHeader({
       <p className="fa1-description">
         Alert {alert.id} · {alert.eventName} · principal {alert.principal} · {alert.resource} · Severity {alert.severity} · {formatDateTime(alert.occurredAt)}
       </p>
-      <p className="fa1-demo">Inception prototype — fictional data and a simulated agent · max {config.maxSteps} reasoning steps</p>
+      <p className="fa1-demo">
+        {live ? 'Live investigation from the AlertChain agent' : 'Inception prototype — fictional data and a simulated agent'} · max {inv.maxSteps ?? config.maxSteps} reasoning steps
+      </p>
 
       <nav className="fa2-tabs" aria-label="Investigation views">
         {TABS.map(([value, label]) => (
