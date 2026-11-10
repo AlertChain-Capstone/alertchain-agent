@@ -276,7 +276,20 @@ The first request may take longer while Docker pulls the Python Lambda image. In
 
 The container and stack remain available for later sessions; do not recreate or reset them just to rerun the health check. For local updates, package again, then create and inspect a CloudFormation UPDATE change set using the generated `$packagedTemplate`, the same `DynamoDBEndpointUrl` override, and `CAPABILITY_IAM`, then execute it and wait for `stack-update-complete`. Check `dynamodb describe-table` for each of the four tables, EventBridge rules/targets and Lambda invoke permissions, and synthetic events with `events test-event-pattern`. Pattern matches and configured targets do not prove actual EventBridge delivery. Direct Lambda ingestion returns `{"alertId":"...","outcome":"inserted"}` for a new GuardDuty finding ARN or selected CloudTrail eventID, and `outcome: duplicate` on redelivery; duplicate writes preserve the original stored item.
 
-CloudTrail ingestion accepts only `aws.iam / iam.amazonaws.com / CreateAccessKey` and `aws.cloudtrail / cloudtrail.amazonaws.com / StopLogging` with detail type `AWS API Call via CloudTrail`. Unselected events return `outcome: ignored` without writing; malformed selected events fail before storage. Caller identity comes from `userIdentity` (user name or assumed-role issuer name when available), separately from the target user/trail in `resource`. Original detail is preserved as `rawEvent`. Severity defaults are provisionally `MEDIUM` for CreateAccessKey and `HIGH` for StopLogging, matching the INC-001/FA1 fixture examples; no formal severity policy is defined in the repo. Synthetic examples live in `backend/tests/fixtures/cloudtrail_create_access_key.json` and `cloudtrail_stop_logging.json`; tests and smoke checks invoke Lambda directly and never call the actual IAM or CloudTrail actions.
+CloudTrail ingestion accepts only `aws.iam / iam.amazonaws.com / CreateAccessKey` and `aws.cloudtrail / cloudtrail.amazonaws.com / StopLogging` with detail type `AWS API Call via CloudTrail`. Unselected events return `outcome: ignored` without writing; malformed selected events fail before storage. Caller identity comes from `userIdentity` (user name or assumed-role issuer name when available), separately from the target user/trail in `resource`. Original detail is preserved as `rawEvent`. Severity defaults are provisionally `MEDIUM` for CreateAccessKey and `HIGH` for StopLogging, matching the INC-001/FA1 fixture examples; no formal severity policy is defined in the repo. Synthetic examples live in `backend/tests/fixtures/cloudtrail_create_access_key.json` and `cloudtrail_stop_logging.json`. The EventBridge smoke test below publishes these synthetic events through Floci; it never calls the actual IAM or CloudTrail actions.
+
+### J10 EventBridge ingestion smoke test (Floci only)
+
+With the existing `alertchain-local` stack and `alertchain-floci` container running, use PowerShell 5.1+ with AWS CLI v2 and Python 3.11+ on `PATH`. From the repo root, run this in a separate PowerShell process:
+
+```powershell
+powershell.exe -NoProfile -File .\scripts\test-floci-ingestion.ps1
+$LASTEXITCODE
+```
+
+The script checks that the local stack exists, then copies the three synthetic fixtures in memory, generates a fresh GuardDuty finding ARN and CloudTrail event IDs, and calculates expected alert IDs using the existing Python normalizers. It confirms each ID is absent, publishes through the default EventBridge bus, checks each publish result, and polls `alertchain-alerts` with consistent reads for up to 15 seconds after publishing. A pass requires the new record and matching source ID. It prints `PASS` or `FAIL` for each event and exits with `0` only when all three pass.
+
+Dummy credentials are confined to the child process. Every AWS CLI call explicitly targets `http://127.0.0.1:4566` in `us-east-2`. The test leaves three synthetic alert records on success; it does not edit fixtures, change or deploy the stack, invoke Lambda directly, or call real IAM/CloudTrail actions. If the local stack is missing, it stops without publishing.
 
 Known Floci limits and checks still required in AWS:
 
