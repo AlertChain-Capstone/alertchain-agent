@@ -296,6 +296,38 @@ Known Floci limits and checks still required in AWS:
 - Floci's SAM transform drops the Lambda's `LoggingConfig`: it is absent from `cloudformation get-template --template-stage Processed`, and the function reports the default group. **AWS check:** confirm the processed Lambda retains `LoggingConfig.LogGroup`, the function uses `/alertchain/backend`, and that group's retention is one day.
 - Floci's `dynamodb describe-table` omitted `BillingModeSummary.BillingMode` and reported provisioned throughput values, so on-demand billing was not confirmed despite `PAY_PER_REQUEST` in the template. **AWS check:** confirm all four tables report `BillingModeSummary.BillingMode: PAY_PER_REQUEST`, with the expected base keys and active GSIs.
 
+### J10 AWS GuardDuty sample verification (sandbox, manual review)
+
+Offline validation (no AWS calls, credentials, AWS CLI, or Pester required): `powershell.exe -NoProfile -File .\scripts\tests\test-aws-guardduty-ingestion.offline.ps1`. This checks PowerShell syntax and 15 mocked scenarios, including blank finding types, cancellation, profile/region forwarding, and CLI failures. Live AWS sandbox ingestion verification remains **PENDING** until the stored-record check below passes.
+
+Use the deployed sandbox ingestion stack, an already enabled GuardDuty detector, PowerShell 5.1+, and AWS CLI v2. In a clean PowerShell session, authenticate the sandbox profile (for example, `aws sso login --profile your-sandbox-profile`); remove inherited Floci credentials and endpoint overrides. The profile needs `sts:GetCallerIdentity`, `guardduty:ListDetectors`, `guardduty:GetDetector`, and `guardduty:CreateSampleFindings`; verification also needs `guardduty:ListFindings`, `guardduty:GetFindings`, and `dynamodb:GetItem`. Replace the profile/account below with the team's sandbox values:
+
+```powershell
+.\scripts\test-aws-guardduty-ingestion.ps1 -Profile your-sandbox-profile -ExpectedAccountId 123456789012 -FindingType 'UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration.OutsideAWS'
+```
+
+`-Region` defaults to `us-east-2`. The script verifies STS account identity and an `ENABLED` regional detector, displays the account/region/type, and requires typing `account-id/region` before requesting exactly one explicit sample type. It does not enable GuardDuty or deploy resources. It uses the named profile and explicit public AWS endpoints, and refuses inherited credential/endpoint overrides. A zero exit code means only that AWS accepted the request: ingestion remains **PENDING**. See AWS's [sample findings guide](https://docs.aws.amazon.com/guardduty/latest/ug/sample_findings.html).
+
+To complete verification, record the request time and detector ID printed by the script. In the GuardDuty console for that account/region, locate the sample of the requested type and check its sample marker and creation/update time against the request. Alternatively, use `aws guardduty list-findings --detector-id <detector-id> --profile your-sandbox-profile --region us-east-2`, then `aws guardduty get-findings --detector-id <detector-id> --finding-ids <finding-id> --profile your-sandbox-profile --region us-east-2` to inspect it. Copy the exact finding ARN. Calculate the alert ID using the same URL-namespace UUIDv5 mapping as `FindingNormalizer`, then read the base table consistently (Python 3.11+ is needed for this snippet):
+
+```powershell
+$profile = 'your-sandbox-profile'
+$region = 'us-east-2'
+$findingArn = '<exact sample finding ARN>'
+$alertId = python -B -c "import sys; from uuid import uuid5, NAMESPACE_URL; print(uuid5(NAMESPACE_URL, sys.argv[1]))" $findingArn
+if ($LASTEXITCODE -ne 0) { throw 'Alert ID calculation failed.' }
+$keyPath = Join-Path $env:TEMP 'alertchain-guardduty-key.json'
+try {
+    @{ alertId = @{ S = $alertId } } | ConvertTo-Json -Compress | Set-Content -Encoding ASCII $keyPath
+    aws dynamodb get-item --table-name alertchain-alerts --key "file://$keyPath" --consistent-read --profile $profile --region $region --endpoint-url "https://dynamodb.$region.amazonaws.com" --output json --no-cli-pager
+    if ($LASTEXITCODE -ne 0) { throw 'Alert lookup failed.' }
+} finally {
+    Remove-Item -LiteralPath $keyPath -ErrorAction SilentlyContinue
+}
+```
+
+Allow several minutes for asynchronous delivery and repeat the lookup. **PASS requires a new record** with the calculated `alertId`, `source` equal to `Amazon GuardDuty`, the requested `eventName` and `region`, `rawEvent.arn` matching the sample ARN, and `createdTime` after the request. Save the ARN, alert ID, request time, and stored record as evidence. A missing record or CLI error is not a pass; inspect the EventBridge rule/target, Lambda permissions/logs, and DynamoDB permissions. Repeated samples can reuse a finding ARN; an existing alert is preserved on redelivery and cannot prove new delivery for this run. Choose a sample type not previously ingested rather than deleting evidence. Updated findings may also follow GuardDuty's configured [EventBridge publication frequency](https://docs.aws.amazon.com/guardduty/latest/ug/guardduty_findings_eventbridge.html). Do not substitute direct Lambda invocation for this check.
+
 ## Project Resources
 
 - Source code: https://github.com/AlertChain-Capstone/alertchain-agent
