@@ -1,0 +1,26 @@
+{
+  "version": "0",
+  "id": "22222222-2222-4222-8222-222222222222",
+  "source": "aws.iam",
+  "detail-type": "AWS API Call via CloudTrail",
+  "account": "123456789012",
+  "region": "us-east-2",
+  "time": "2026-11-01T10:05:00Z",
+  "resources": [],
+  "detail": {
+    "eventID": "33333333-3333-4333-8333-333333333333",
+    "eventSource": "iam.amazonaws.com",
+    "eventName": "CreateAccessKey",
+    "eventTime": "2026-11-01T05:00:00-05:00",
+    "awsRegion": "us-east-2",
+    "userIdentity": {
+      "type": "IAMUser",
+      "userName": "synthetic-security-admin",
+      "arn": "arn:aws:iam::123456789012:user/synthetic-security-admin",
+      "principalId": "SYNTHETIC-ADMIN"
+    },
+    "requestParameters": {"userName": "synthetic-target-user"},
+    "responseElements": null,
+    "sourceIPAddress": "203.0.113.45"
+  }
+}

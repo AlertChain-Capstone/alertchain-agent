@@ -2,6 +2,12 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: AlertChain backend starter with a health endpoint.
 
+Parameters:
+  DynamoDBEndpointUrl:
+    Type: String
+    Default: ''
+    Description: Optional container-reachable DynamoDB endpoint for local emulation; empty on AWS.
+
 Resources:
   AlertsTable:
     Type: AWS::DynamoDB::Table
@@ -127,23 +133,28 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${BackendLogGroup}:log-stream:*
+        - PolicyName: StoreAlerts
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:PutItem
+                Resource: !GetAtt AlertsTable.Arn
 
   BackendFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: alertchain-backend
       Runtime: python3.12
-      Handler: index.handler
+      Handler: handler.handler
+      CodeUri: backend/
       Role: !GetAtt BackendExecutionRole.Arn
       LoggingConfig:
         LogGroup: !Ref BackendLogGroup
-      InlineCode: |
-        def handler(event, context):
-            return {
-                "statusCode": 200,
-                "headers": {"content-type": "application/json"},
-                "body": '{"status":"ok"}',
-            }
+      Environment:
+        Variables:
+          ALERTS_TABLE_NAME: !Ref AlertsTable
+          DYNAMODB_ENDPOINT_URL: !Ref DynamoDBEndpointUrl
       Events:
         Health:
           Type: HttpApi
