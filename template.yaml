@@ -1,0 +1,215 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: AlertChain backend starter with a health endpoint.
+
+Resources:
+  AlertsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: alertchain-alerts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: alertId
+          AttributeType: S
+        - AttributeName: alertCollection
+          AttributeType: S
+        - AttributeName: eventTimeAlertId
+          AttributeType: S
+        - AttributeName: principal
+          AttributeType: S
+      KeySchema:
+        - AttributeName: alertId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: alertsByTime
+          KeySchema:
+            - AttributeName: alertCollection
+              KeyType: HASH
+            - AttributeName: eventTimeAlertId
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: alertsByPrincipalAndTime
+          KeySchema:
+            - AttributeName: principal
+              KeyType: HASH
+            - AttributeName: eventTimeAlertId
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  InvestigationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: alertchain-investigations
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: investigation_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: investigation_id
+          KeyType: HASH
+
+  EvidenceTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: alertchain-evidence
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: evidence_id
+          AttributeType: S
+        - AttributeName: investigation_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: evidence_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: evidenceByInvestigation
+          KeySchema:
+            - AttributeName: investigation_id
+              KeyType: HASH
+            - AttributeName: evidence_id
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  IncidentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: alertchain-incidents
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: incident_id
+          AttributeType: S
+        - AttributeName: investigation_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: incident_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: incidentsByInvestigation
+          KeySchema:
+            - AttributeName: investigation_id
+              KeyType: HASH
+            - AttributeName: incident_id
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+
+  BackendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /alertchain/backend
+      RetentionInDays: 1
+
+  BackendExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: BackendLogStreams
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${BackendLogGroup}:log-stream:*
+
+  BackendFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: alertchain-backend
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt BackendExecutionRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref BackendLogGroup
+      InlineCode: |
+        def handler(event, context):
+            return {
+                "statusCode": 200,
+                "headers": {"content-type": "application/json"},
+                "body": '{"status":"ok"}',
+            }
+      Events:
+        Health:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /health
+            Method: GET
+
+  GuardDutyFindingsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventBusName: default
+      State: ENABLED
+      EventPattern:
+        source:
+          - aws.guardduty
+        detail-type:
+          - GuardDuty Finding
+      Targets:
+        - Id: AlertchainBackend
+          Arn: !GetAtt BackendFunction.Arn
+
+  GuardDutyInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt BackendFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt GuardDutyFindingsRule.Arn
+
+  SelectedCloudTrailRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventBusName: default
+      State: ENABLED
+      EventPattern:
+        detail-type:
+          - AWS API Call via CloudTrail
+        $or:
+          - source:
+              - aws.iam
+            detail:
+              eventSource:
+                - iam.amazonaws.com
+              eventName:
+                - CreateAccessKey
+          - source:
+              - aws.cloudtrail
+            detail:
+              eventSource:
+                - cloudtrail.amazonaws.com
+              eventName:
+                - StopLogging
+      Targets:
+        - Id: AlertchainBackend
+          Arn: !GetAtt BackendFunction.Arn
+
+  SelectedCloudTrailInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt BackendFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt SelectedCloudTrailRule.Arn
+
+Outputs:
+  HealthUrl:
+    Description: Health endpoint URL.
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/health
