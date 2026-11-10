@@ -205,6 +205,70 @@ Only the suggested questions (ignoring case, surrounding whitespace, and trailin
 - Backend services, live AWS ingestion, AI reasoning/correlation, and generated incident reports remain planned work. Displayed reports and answers are static fixture content.
 - Copy JSON depends on browser clipboard support and permission. If copying fails, the JSON remains available for manual copying.
 
+## J9 infrastructure: team AWS sandbox
+
+Prerequisites: PowerShell 5.1 or newer, AWS CLI v2, AWS SAM CLI, and configured team sandbox credentials with permission to manage this stack's resources and IAM role. Select your team's profile with `$env:AWS_PROFILE = 'your-sandbox-profile'`, sign in if needed, and clear any local Floci credential or endpoint overrides first. The scripts use your configured credentials and verify the STS caller's account before running SAM. There is no established infrastructure script language in this repo, so these helpers use PowerShell.
+
+From the repo root, replace `123456789012` with the team's actual sandbox account ID:
+
+```powershell
+.\scripts\deploy.ps1 -StackName alertchain-sandbox -ExpectedAccountId 123456789012
+```
+
+```powershell
+.\scripts\teardown.ps1 -StackName alertchain-sandbox -ExpectedAccountId 123456789012
+```
+
+Both accept `-Region`, defaulting to `us-east-2`. Deploy uses `sam deploy` and asks for change-set confirmation; review replacements and removals before accepting. Teardown shows the verified account, region, and stack name, requires typing the stack name, and retains `sam delete` confirmation. **Deleting the stack can delete its DynamoDB tables and all their data.** Back up anything needed first. Resource names in `template.yaml` are fixed, so use one AlertChain stack per account/region to avoid name collisions. Neither script is for Floci.
+
+### Local Floci verification
+
+Prerequisites on Windows: **Docker Desktop** running with Linux containers and **AWS CLI v2** installed (`aws --version`). Open PowerShell in the root of your fresh clone, where `template.yaml` is located. No AWS account, AWS login, or SAM CLI is required. Use a separate PowerShell session so temporary test credentials do not affect your AWS sandbox session.
+
+On first use, create a persistent Docker volume and the Floci container. The Docker socket mount lets Floci run the Lambda in a container; persistent storage keeps the local stack across restarts. These settings follow Floci's [Docker](https://floci.io/floci/configuration/docker/) and [storage](https://floci.io/floci/configuration/storage/) documentation.
+
+```powershell
+docker volume create alertchain-floci-data
+docker run -d --name alertchain-floci -p 127.0.0.1:4566:4566 --mount source=alertchain-floci-data,target=/app/data --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock -e FLOCI_STORAGE_MODE=hybrid -e FLOCI_STORAGE_PERSISTENT_PATH=/app/data floci/floci:latest
+```
+
+On later sessions, start the existing stopped container instead of creating another one:
+
+```powershell
+docker start alertchain-floci
+```
+
+Wait until Floci is ready (`docker logs alertchain-floci`). Then set process-local credentials and create `alertchain-local` from the SAM template through Floci's CloudFormation API. This is the same AWS CLI CloudFormation deploy workflow used for the local verification; it does not run SAM CLI. Every AWS CLI command explicitly targets Floci in `us-east-2`:
+
+```powershell
+$env:AWS_ACCESS_KEY_ID = 'test'
+$env:AWS_SECRET_ACCESS_KEY = 'test'
+$env:AWS_SESSION_TOKEN = $null
+$env:AWS_PAGER = ''
+aws --endpoint-url http://127.0.0.1:4566 --region us-east-2 cloudformation deploy --template-file template.yaml --stack-name alertchain-local --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset
+if ($LASTEXITCODE -ne 0) { throw 'Local stack deployment failed; inspect the error before continuing.' }
+aws --endpoint-url http://127.0.0.1:4566 --region us-east-2 cloudformation describe-stacks --stack-name alertchain-local --query 'Stacks[0].StackStatus' --output text
+aws --endpoint-url http://127.0.0.1:4566 --region us-east-2 apigatewayv2 get-apis
+# Replace <api-id> with the ApiId of the HTTP API returned above.
+$response = Invoke-WebRequest -UseBasicParsing -Uri 'http://<api-id>.execute-api.localhost.floci.io:4566/health' -TimeoutSec 120
+$response.StatusCode
+$response.Content
+```
+
+On first deployment, expect stack status `CREATE_COMPLETE` and this health result (HTTP `200 OK`):
+
+```text
+200
+{"status":"ok"}
+```
+
+The first health request may take longer while Docker pulls the Python Lambda image. The container and stack remain available for later sessions; do not recreate or reset them just to rerun the health check. For local updates, create and inspect a CloudFormation UPDATE change set using `file://template.yaml` and `CAPABILITY_IAM`, then execute it and wait for `stack-update-complete`. Check `dynamodb describe-table` for each of the four tables, EventBridge rules/targets and Lambda invoke permissions, and synthetic events with `events test-event-pattern`. Pattern matches and configured targets do not prove actual event delivery.
+
+Known Floci limits and checks still required in AWS:
+
+- Floci's SAM transform drops the Lambda's `LoggingConfig`: it is absent from `cloudformation get-template --template-stage Processed`, and the function reports the default group. **AWS check:** confirm the processed Lambda retains `LoggingConfig.LogGroup`, the function uses `/alertchain/backend`, and that group's retention is one day.
+- Floci's `dynamodb describe-table` omitted `BillingModeSummary.BillingMode` and reported provisioned throughput values, so on-demand billing was not confirmed despite `PAY_PER_REQUEST` in the template. **AWS check:** confirm all four tables report `BillingModeSummary.BillingMode: PAY_PER_REQUEST`, with the expected base keys and active GSIs.
+
 ## Project Resources
 
 - Source code: https://github.com/AlertChain-Capstone/alertchain-agent
