@@ -278,6 +278,39 @@ The container and stack remain available for later sessions; do not recreate or 
 
 CloudTrail ingestion accepts only `aws.iam / iam.amazonaws.com / CreateAccessKey` and `aws.cloudtrail / cloudtrail.amazonaws.com / StopLogging` with detail type `AWS API Call via CloudTrail`. Unselected events return `outcome: ignored` without writing; malformed selected events fail before storage. Caller identity comes from `userIdentity` (user name or assumed-role issuer name when available), separately from the target user/trail in `resource`. Original detail is preserved as `rawEvent`. Severity defaults are provisionally `MEDIUM` for CreateAccessKey and `HIGH` for StopLogging, matching the INC-001/FA1 fixture examples; no formal severity policy is defined in the repo. Synthetic examples live in `backend/tests/fixtures/cloudtrail_create_access_key.json` and `cloudtrail_stop_logging.json`. The EventBridge smoke test below publishes these synthetic events through Floci; it never calls the actual IAM or CloudTrail actions.
 
+### Local frontend website (Floci only)
+
+With the existing `alertchain-floci` container running, use Windows PowerShell 5.1+, Node.js/npm (compatible with the installed Vite version), and AWS CLI v2. From the repository root:
+
+```powershell
+powershell.exe -NoProfile -File .\scripts\deploy-floci-frontend.ps1
+```
+
+The script installs locked dependencies with `npm ci` if Vite is missing, runs `npm run build`, and uploads the **contents** of ignored `dist/` to the dedicated `alertchain-frontend-local` bucket. Run `npm ci` yourself after dependency/lockfile changes. Every AWS CLI call explicitly uses `http://127.0.0.1:4566` and `us-east-2`, with temporary dummy credentials. The script restores its environment on exit, configures `index.html` as the website index/error document, grants anonymous object reads only on this local bucket, and assigns HTML, JavaScript, CSS, and SVG content types. Re-running updates the site without deleting old assets, the backend stack, or DynamoDB data; assets upload before `index.html`. Generated files are not source changes and should not be committed.
+
+Open [the local frontend](http://alertchain-frontend-local.s3-website-us-east-2.localhost.floci.io:4566/). This hostname resolves to loopback; Windows PowerShell did not resolve the shorter `*.localhost` variant. The script checks the root HTTP response and prints the installed Floci version. Floci **2.4.0** was verified to serve the index and assets with HTTP 200 and the expected MIME types. Its [S3 website support](https://floci.io/floci/services/s3/#website-hosting) includes index/error documents, but not advanced routing rules. This local HTTP test does not establish production AWS hosting, TLS, or IAM parity.
+
+The app already uses `HashRouter`: nested URLs must retain `/#/`, for example [incident INC-001](http://alertchain-frontend-local.s3-website-us-east-2.localhost.floci.io:4566/#/incidents/INC-001). The hash stays in the browser, so refreshing requests the site root. A bare `/incidents/INC-001` path is not an equivalent app link; an error document is not a server-side route rewrite. Changes made to mock UI state can reset on refresh.
+
+This deployment forces `VITE_USE_MOCK=true` at build time and overrides the API base URL to loopback, including when local `.env` files exist. Data behavior:
+
+| Screens | Data / backend behavior |
+| --- | --- |
+| FA1 sources, alerts, alert details | `src/mock/fa1.json` and in-memory UI changes; no backend calls. |
+| FA2 investigations, reasoning trace, attack chain | Fixtures and simulated investigations in this build. Its optional live client uses `POST /investigations` and `GET /investigations/{id}` polling when a base URL is configured and mock mode is off. |
+| FA3 dashboard, incidents, reports, Ask the Agent | `src/mock/fa3.json`, in-memory state, and canned answers; no backend calls. |
+
+The deployed Lambda HTTP entry point currently exposes only `GET /health`; this website does not call it or display ingested DynamoDB records. Live investigations require backend routing/integration and cross-origin access before enabling the API client in a separate build.
+
+Browser verification checklist (the script's HTTP check does **not** complete these checks):
+
+1. Open the site with DevTools Network recording, reload, and confirm HTML, JS, CSS, and SVG assets load with no failed requests or MIME errors.
+2. Navigate through Dashboard & Incidents, Alerts & Sources, and Investigations, then open an incident report and an alert detail.
+3. Refresh `/#/incidents/INC-001` and confirm the same report renders; test Back/Forward navigation.
+4. Check Console for runtime errors and Network for unexpected backend or external requests. This mock build should make no investigation API requests.
+
+Browser checks completed through ChatGPT's connected browser (reported by the reviewer): Dashboard, Sources, Alerts list, alert detail, and Investigations rendered. Refreshing `/#/incidents/INC-001` kept the incident report open, and browser Back and Forward worked. No captured console warnings or errors were reported. A **full Network-panel check remains pending**, including checking for failed asset requests and unexpected backend or external requests. These checks used the mock-data build; backend integration remains pending.
+
 ### J10 EventBridge ingestion smoke test (Floci only)
 
 With the existing `alertchain-local` stack and `alertchain-floci` container running, use PowerShell 5.1+ with AWS CLI v2 and Python 3.11+ on `PATH`. From the repo root, run this in a separate PowerShell process:
