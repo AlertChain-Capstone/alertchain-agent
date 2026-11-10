@@ -1,0 +1,32 @@
+{
+  "version": "0",
+  "id": "44444444-4444-4444-8444-444444444444",
+  "source": "aws.cloudtrail",
+  "detail-type": "AWS API Call via CloudTrail",
+  "account": "123456789012",
+  "region": "us-east-2",
+  "time": "2026-11-01T10:15:00Z",
+  "resources": [],
+  "detail": {
+    "eventID": "55555555-5555-4555-8555-555555555555",
+    "eventSource": "cloudtrail.amazonaws.com",
+    "eventName": "StopLogging",
+    "eventTime": "2026-11-01T10:10:00Z",
+    "awsRegion": "us-east-2",
+    "userIdentity": {
+      "type": "AssumedRole",
+      "arn": "arn:aws:sts::123456789012:assumed-role/synthetic-ops-role/test-session",
+      "principalId": "SYNTHETIC-ROLE:test-session",
+      "sessionContext": {
+        "sessionIssuer": {
+          "type": "Role",
+          "userName": "synthetic-ops-role",
+          "arn": "arn:aws:iam::123456789012:role/synthetic-ops-role"
+        }
+      }
+    },
+    "requestParameters": {"name": "synthetic-security-trail"},
+    "responseElements": null,
+    "sourceIPAddress": "198.51.100.12"
+  }
+}

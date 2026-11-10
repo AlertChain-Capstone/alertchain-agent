@@ -238,14 +238,24 @@ On later sessions, start the existing stopped container instead of creating anot
 docker start alertchain-floci
 ```
 
-Wait until Floci is ready (`docker logs alertchain-floci`). Then set process-local credentials and create `alertchain-local` from the SAM template through Floci's CloudFormation API. This is the same AWS CLI CloudFormation deploy workflow used for the local verification; it does not run SAM CLI. Every AWS CLI command explicitly targets Floci in `us-east-2`:
+Wait until Floci is ready (`docker logs alertchain-floci`). Then set process-local credentials, package the Python backend into a local S3 bucket, and create or update `alertchain-local` through Floci's CloudFormation API. AWS CLI's `cloudformation package` zips `backend/` automatically; SAM CLI is not required. Keep the generated template in the temporary directory. Every AWS CLI command explicitly targets Floci in `us-east-2`; the endpoint environment settings also keep the packager's nested S3 calls local:
 
 ```powershell
 $env:AWS_ACCESS_KEY_ID = 'test'
 $env:AWS_SECRET_ACCESS_KEY = 'test'
 $env:AWS_SESSION_TOKEN = $null
 $env:AWS_PAGER = ''
-aws --endpoint-url http://127.0.0.1:4566 --region us-east-2 cloudformation deploy --template-file template.yaml --stack-name alertchain-local --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset
+$env:AWS_ENDPOINT_URL = 'http://127.0.0.1:4566'
+$env:AWS_ENDPOINT_URL_S3 = 'http://127.0.0.1:4566'
+aws --endpoint-url http://127.0.0.1:4566 --region us-east-2 s3api head-bucket --bucket alertchain-local-artifacts
+if ($LASTEXITCODE -ne 0) {
+    aws --endpoint-url http://127.0.0.1:4566 --region us-east-2 s3api create-bucket --bucket alertchain-local-artifacts --create-bucket-configuration LocationConstraint=us-east-2
+    if ($LASTEXITCODE -ne 0) { throw 'Local artifact bucket creation failed.' }
+}
+$packagedTemplate = Join-Path $env:TEMP 'alertchain-local-packaged.yaml'
+aws --endpoint-url http://127.0.0.1:4566 --region us-east-2 cloudformation package --template-file template.yaml --s3-bucket alertchain-local-artifacts --output-template-file $packagedTemplate
+if ($LASTEXITCODE -ne 0) { throw 'Local backend packaging failed.' }
+aws --endpoint-url http://127.0.0.1:4566 --region us-east-2 cloudformation deploy --template-file $packagedTemplate --stack-name alertchain-local --parameter-overrides DynamoDBEndpointUrl=http://host.docker.internal:4566 --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset
 if ($LASTEXITCODE -ne 0) { throw 'Local stack deployment failed; inspect the error before continuing.' }
 aws --endpoint-url http://127.0.0.1:4566 --region us-east-2 cloudformation describe-stacks --stack-name alertchain-local --query 'Stacks[0].StackStatus' --output text
 aws --endpoint-url http://127.0.0.1:4566 --region us-east-2 apigatewayv2 get-apis
@@ -262,7 +272,11 @@ On first deployment, expect stack status `CREATE_COMPLETE` and this health resul
 {"status":"ok"}
 ```
 
-The first health request may take longer while Docker pulls the Python Lambda image. The container and stack remain available for later sessions; do not recreate or reset them just to rerun the health check. For local updates, create and inspect a CloudFormation UPDATE change set using `file://template.yaml` and `CAPABILITY_IAM`, then execute it and wait for `stack-update-complete`. Check `dynamodb describe-table` for each of the four tables, EventBridge rules/targets and Lambda invoke permissions, and synthetic events with `events test-event-pattern`. Pattern matches and configured targets do not prove actual event delivery.
+The first request may take longer while Docker pulls the Python Lambda image. Inside that container, `127.0.0.1` refers to the Lambda itself: the local-only `DynamoDBEndpointUrl` override uses Docker Desktop's `http://host.docker.internal:4566` to reach Floci. Leave this parameter empty on AWS. The Python runtime supplies boto3; the handler currently needs no additional packaged dependencies.
+
+The container and stack remain available for later sessions; do not recreate or reset them just to rerun the health check. For local updates, package again, then create and inspect a CloudFormation UPDATE change set using the generated `$packagedTemplate`, the same `DynamoDBEndpointUrl` override, and `CAPABILITY_IAM`, then execute it and wait for `stack-update-complete`. Check `dynamodb describe-table` for each of the four tables, EventBridge rules/targets and Lambda invoke permissions, and synthetic events with `events test-event-pattern`. Pattern matches and configured targets do not prove actual EventBridge delivery. Direct Lambda ingestion returns `{"alertId":"...","outcome":"inserted"}` for a new GuardDuty finding ARN or selected CloudTrail eventID, and `outcome: duplicate` on redelivery; duplicate writes preserve the original stored item.
+
+CloudTrail ingestion accepts only `aws.iam / iam.amazonaws.com / CreateAccessKey` and `aws.cloudtrail / cloudtrail.amazonaws.com / StopLogging` with detail type `AWS API Call via CloudTrail`. Unselected events return `outcome: ignored` without writing; malformed selected events fail before storage. Caller identity comes from `userIdentity` (user name or assumed-role issuer name when available), separately from the target user/trail in `resource`. Original detail is preserved as `rawEvent`. Severity defaults are provisionally `MEDIUM` for CreateAccessKey and `HIGH` for StopLogging, matching the INC-001/FA1 fixture examples; no formal severity policy is defined in the repo. Synthetic examples live in `backend/tests/fixtures/cloudtrail_create_access_key.json` and `cloudtrail_stop_logging.json`; tests and smoke checks invoke Lambda directly and never call the actual IAM or CloudTrail actions.
 
 Known Floci limits and checks still required in AWS:
 
