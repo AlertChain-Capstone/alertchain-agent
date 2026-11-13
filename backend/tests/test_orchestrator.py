@@ -61,7 +61,7 @@ def test_tool_calls_then_final_answer_completes_with_cited_evidence():
 
     # Requests sent to Bedrock: defaults, maxTokens 600, tool config, tool results with IDs.
     first, second = runtime.requests[0], runtime.requests[1]
-    assert first["modelId"] == "us.amazon.nova-micro-v1:0"
+    assert first["modelId"] == "us.amazon.nova-lite-v1:0"
     assert first["inferenceConfig"]["maxTokens"] == 600
     assert [t["toolSpec"]["name"] for t in first["toolConfig"]["tools"]] == h.tool_names
     tool_result = second["messages"][-1]["content"][0]["toolResult"]
