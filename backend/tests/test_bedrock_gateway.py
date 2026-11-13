@@ -47,7 +47,7 @@ def test_settings_defaults(monkeypatch):
     monkeypatch.delenv("BEDROCK_MODEL_ID", raising=False)
     monkeypatch.delenv("BEDROCK_REGION", raising=False)
     s = BedrockSettings.from_env()
-    assert (s.model_id, s.region, s.max_tokens) == ("us.amazon.nova-micro-v1:0", "us-east-2", 600)
+    assert (s.model_id, s.region, s.max_tokens) == ("us.amazon.nova-lite-v1:0", "us-east-2", 600)
 
 
 def test_settings_from_env(monkeypatch):
