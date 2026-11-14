@@ -1,7 +1,7 @@
 """BedrockClient: the LLM gateway over bedrock-runtime `converse`.
 
 Configuration (env vars):
-    BEDROCK_MODEL_ID  default us.amazon.nova-lite-v1:0
+    BEDROCK_MODEL_ID  default us.amazon.nova-micro-v1:0
     BEDROCK_REGION    default us-east-2 (the project's Region)
 Credentials come from the normal boto3 chain (e.g. AWS_PROFILE). Credentials created by
 `aws login` need the `boto3[crt]` extra.
@@ -18,7 +18,7 @@ from .request_builder import ConverseRequestBuilder
 from .response_parser import ModelResponseParser, ModelTurn
 from .tool_schema import ToolDefinition, ToolSchemaMapper
 
-DEFAULT_MODEL_ID = "us.amazon.nova-lite-v1:0"
+DEFAULT_MODEL_ID = "us.amazon.nova-micro-v1:0"
 DEFAULT_REGION = "us-east-2"
 DEFAULT_MAX_TOKENS = 600
 

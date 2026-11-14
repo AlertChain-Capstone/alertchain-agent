@@ -16,8 +16,8 @@ and us-east-2. Tool use support comes from each model's card in the Bedrock User
 
 | # | Model | Input | Output | Model ID to use |
 |---|---|---|---|---|
-| 1 | Amazon Nova Micro | $0.035 | $0.14 | `amazon.nova-micro-v1:0` (us-east-1 only) / `us.amazon.nova-micro-v1:0` |
-| 2 | Amazon Nova Lite (chosen) | $0.06 | $0.24 | `us.amazon.nova-lite-v1:0` (AWS lists no in-Region endpoint in us-east-2, so use the US inference profile) |
+| 1 | Amazon Nova Micro (chosen) | $0.035 | $0.14 | `amazon.nova-micro-v1:0` (us-east-1 only) / `us.amazon.nova-micro-v1:0` |
+| 2 | Amazon Nova Lite | $0.06 | $0.24 | `us.amazon.nova-lite-v1:0` (AWS lists no in-Region endpoint in us-east-2, so use the US inference profile) |
 | 3 | Claude Haiku 5.5 | $0.11 (`us.`) / $0.10 (`global.`) | $0.55 / $0.50 | `us.anthropic.claude-haiku-5-5` / `global.anthropic.claude-haiku-5-5` |
 
 Other models checked: Claude 3 Haiku ($0.25 / $1.25) and Nova 2 Lite ($0.30–0.33 / $2.50–2.75).
@@ -46,7 +46,7 @@ created by `aws login`.
 
 ### Run 2: us-east-2, worked
 
-> Team decision (Nov 12): the backend default is now **Nova Lite** (`us.amazon.nova-lite-v1:0`) for more reliable tool calling. The table below was measured on Nova Micro. The Nova Lite re-run (Nov 13) is in "Run 3" below.
+> Model history: Nova Micro was chosen first, the team moved to Nova Lite on Nov 12, then back to **Nova Micro** (`us.amazon.nova-micro-v1:0`) on Nov 13 after the Micro vs Lite comparison in Runs 3 to 5 below (Micro gave better answers, cost about 30% less and was never content-filtered).
 
 | Field | Result |
 |---|---|
@@ -152,7 +152,7 @@ the request, map tool definitions, and parse the response. The parser moves Nova
 
 | Env var | Default |
 |---|---|
-| `BEDROCK_MODEL_ID` | `us.amazon.nova-lite-v1:0` |
+| `BEDROCK_MODEL_ID` | `us.amazon.nova-micro-v1:0` |
 | `BEDROCK_REGION` | `us-east-2` |
 
 `maxTokens` is 600. Credentials come from the normal boto3 chain (e.g. `AWS_PROFILE`).
