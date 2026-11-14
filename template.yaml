@@ -140,6 +140,51 @@ Resources:
               - Effect: Allow
                 Action: dynamodb:PutItem
                 Resource: !GetAtt AlertsTable.Arn
+        - PolicyName: AgentReadAlerts
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                Resource:
+                  - !GetAtt AlertsTable.Arn
+                  - !Sub ${AlertsTable.Arn}/index/alertsByPrincipalAndTime
+        - PolicyName: AgentInvestigationStorage
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                Resource:
+                  - !GetAtt InvestigationsTable.Arn
+                  - !GetAtt EvidenceTable.Arn
+                  - !Sub ${EvidenceTable.Arn}/index/evidenceByInvestigation
+                  - !GetAtt IncidentsTable.Arn
+                  - !Sub ${IncidentsTable.Arn}/index/incidentsByInvestigation
+        - PolicyName: AgentInvokeBedrock
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/us.amazon.nova-micro-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:us-east-1::foundation-model/amazon.nova-micro-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:us-east-2::foundation-model/amazon.nova-micro-v1:0
+                  - !Sub arn:${AWS::Partition}:bedrock:us-west-2::foundation-model/amazon.nova-micro-v1:0
+        - PolicyName: AgentSelfInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:alertchain-backend
 
   BackendFunction:
     Type: AWS::Serverless::Function
@@ -148,6 +193,8 @@ Resources:
       Runtime: python3.12
       Handler: handler.handler
       CodeUri: backend/
+      Timeout: 120
+      MemorySize: 512
       Role: !GetAtt BackendExecutionRole.Arn
       LoggingConfig:
         LogGroup: !Ref BackendLogGroup
@@ -155,6 +202,11 @@ Resources:
         Variables:
           ALERTS_TABLE_NAME: !Ref AlertsTable
           DYNAMODB_ENDPOINT_URL: !Ref DynamoDBEndpointUrl
+          INVESTIGATIONS_TABLE_NAME: !Ref InvestigationsTable
+          EVIDENCE_TABLE_NAME: !Ref EvidenceTable
+          INCIDENTS_TABLE_NAME: !Ref IncidentsTable
+          BEDROCK_MODEL_ID: us.amazon.nova-micro-v1:0
+          BEDROCK_REGION: !Ref AWS::Region
       Events:
         Health:
           Type: HttpApi
@@ -162,6 +214,18 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /health
             Method: GET
+        Investigations:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /investigations
+            Method: ANY
+        InvestigationById:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /investigations/{proxy+}
+            Method: ANY
 
   GuardDutyFindingsRule:
     Type: AWS::Events::Rule
