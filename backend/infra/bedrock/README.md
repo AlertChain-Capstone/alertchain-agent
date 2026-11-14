@@ -93,6 +93,23 @@ Findings:
   and the pool and suggested a rollback. Run both models on several sample alerts before drawing
   conclusions about answer quality.
 
+### Run 4: Micro vs Lite on 4 alerts, maxTokens 300 (Nov 13)
+
+Total cost $0.0009825. Only 3 of 8 runs reached `end_turn`: 4 hit the 300 token cap (the models write
+long `<thinking>` text first) and 1 was blocked by Bedrock's content filter. The backend uses
+maxTokens 600, so this test was harsher than real use. Not a clean comparison.
+
+| Alert | Micro | Lite |
+|---|---|---|
+| A-1 deploy/latency/pool | Finished, linked deploy, latency and pool, gave next steps | Cut off before any root cause |
+| S-2 IAM key abuse (true positive) | Cut off inside `<thinking>` (reasoning was correct) | `content_filtered` |
+| B-3 nightly batch (benign) | Correct but cut off, raw `<response>` tag | Finished, correct, vague |
+| U-4 VPN + secret read (ambiguous) | Cut off on `</thinking` (reasoning was right) | Finished, but wrongly called it benign |
+
+Takeaways: Micro reasoned better in all 4 cases but rarely finished. Lite finished more often but was
+over-confident on U-4 and was blocked on S-2. The orchestrator already escalates to a human on
+`content_filtered`. Next: re-run at maxTokens 600 and repeat S-2 on Lite to see if it is always blocked.
+
 ### Run 1: us-east-1, blocked
 
 | Field | Result |

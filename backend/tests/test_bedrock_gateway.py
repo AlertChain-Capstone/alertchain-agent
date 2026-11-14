@@ -20,6 +20,8 @@ from infra.bedrock import (
         ("stray </thinking> tag", "stray  tag", []),
         ("<thinking>why</thinking><answer>Roll back v2.14.0.</answer>", "Roll back v2.14.0.", ["why"]),
         ("<answer>Partial", "Partial", []),
+        ("<thinking>Revoke the keys.</thinking", "", ["Revoke the keys."]),
+        ("<response>The alert looks benign.</response>", "The alert looks benign.", []),
     ],
 )
 def test_strip_thinking(raw, visible, thoughts):
