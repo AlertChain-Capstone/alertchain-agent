@@ -2,6 +2,8 @@
 
 import copy
 import json
+import subprocess
+import sys
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import Mock
@@ -178,6 +180,8 @@ def test_empty_table_and_blank_text_filters():
     {"severity": "High"}, {"source": "aws.guardduty"}, {"status": "RUNNING"},
     {"from": "2026-11-14"}, {"from": "2026-11-14T14:30:00"},
     {"from": "2026-02-30T14:30:00Z"}, {"to": ""},
+    {"from": "2026-11-14T14:30:00+00:99"},
+    {"to": "2026-11-14T14:30:00-01:60"},
     {"from": "2026-11-15T00:00:00Z", "to": "2026-11-14T00:00:00Z"},
     {"limit": "6"},
 ])
@@ -241,6 +245,27 @@ def test_guardduty_details_and_ingestion_write_read_roundtrip():
     assert details["sourceIp"] == "198.51.100.12"
     assert details["summary"] == raw["description"]
     assert call(api, f"/alerts/{alert.id}/raw-event")[1]["rawEvent"] == raw
+
+
+@pytest.mark.parametrize("direction,local_ip,expected_source", [
+    ("INBOUND", "10.0.0.5", "198.51.100.12"),
+    ("OUTBOUND", "10.0.0.5", "10.0.0.5"),
+    ("OUTBOUND", None, None),
+    (None, "10.0.0.5", None),
+    ("UNKNOWN", "10.0.0.5", None),
+])
+def test_guardduty_network_source_ip_respects_connection_direction(direction, local_ip, expected_source):
+    action = {"remoteIpDetails": {"ipAddressV4": "198.51.100.12"}}
+    if direction is not None:
+        action["connectionDirection"] = direction
+    if local_ip is not None:
+        action["localIpDetails"] = {"ipAddressV4": local_ip}
+    raw = {"service": {"action": {"networkConnectionAction": action}}}
+    api, table, _ = controller(PagedTable([item(source="Amazon GuardDuty", rawEvent=raw)]))
+    status, details = call(api, "/alerts/A-1")
+    assert status == 200
+    assert details["sourceIp"] == expected_source
+    assert table.rows[0]["rawEvent"] == raw
 
 
 def test_raw_event_serializes_nested_decimals_booleans_and_nulls_without_mutation():
@@ -401,6 +426,33 @@ def test_shared_lambda_dispatches_all_four_reads_without_initializing_incidents(
 def test_shared_lambda_initialization_failure_returns_503(monkeypatch):
     monkeypatch.setattr(handler, "_alert_repository", Mock(side_effect=RuntimeError("config")))
     assert handler.handler(event(), None)["statusCode"] == 503
+
+
+def test_alert_http_cold_start_does_not_require_fastapi():
+    # An isolated interpreter avoids hiding eager imports behind the test suite's module cache.
+    script = '''
+import importlib.abc
+import sys
+
+class BlockFastAPI(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == "fastapi" or fullname.startswith("fastapi."):
+            raise AssertionError("Alert reads imported FastAPI")
+
+sys.meta_path.insert(0, BlockFastAPI())
+import handler
+class MissingAlerts:
+    def get_alert(self, alert_id):
+        return None
+handler._alert_repository = lambda: MissingAlerts()
+http = {"requestContext": {"http": {"method": "GET"}}}
+assert handler.handler({**http, "rawPath": "/health"}, None)["statusCode"] == 200
+assert handler.handler({**http, "rawPath": "/alerts/missing"}, None)["statusCode"] == 404
+assert "fastapi" not in sys.modules
+'''
+    result = subprocess.run([sys.executable, "-B", "-c", script],
+                            cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stderr
 
 
 def test_repository_direct_read_contracts():

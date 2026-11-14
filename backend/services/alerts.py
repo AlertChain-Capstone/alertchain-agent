@@ -33,6 +33,25 @@ def _text_at(data: Any, *path: str) -> str | None:
     return data if isinstance(data, str) and data.strip() else None
 
 
+def _guardduty_source_ip(raw: Any) -> str | None:
+    action_path = ("service", "action")
+    # The remote endpoint initiates an API call. For network connections, direction
+    # determines the source: remote on inbound connections, local on outbound ones.
+    ip_path = (*action_path, "awsApiCallAction", "remoteIpDetails")
+    if not isinstance(raw, dict) or not isinstance(raw.get("service"), dict):
+        return None
+    action = raw["service"].get("action")
+    if not isinstance(action, dict):
+        return None
+    if not isinstance(action.get("awsApiCallAction"), dict):
+        direction = _text_at(action, "networkConnectionAction", "connectionDirection")
+        endpoint = {"INBOUND": "remoteIpDetails", "OUTBOUND": "localIpDetails"}.get(direction)
+        if endpoint is None:
+            return None
+        ip_path = (*action_path, "networkConnectionAction", endpoint)
+    return _text_at(raw, *ip_path, "ipAddressV4") or _text_at(raw, *ip_path, "ipAddressV6")
+
+
 class AlertService:
     def __init__(
         self, alerts: AlertRepository, incident_lookup: Callable[[], AlertIncidentLookup],
@@ -69,15 +88,7 @@ class AlertService:
         elif alert.source == "Amazon GuardDuty":
             access_key = _text_at(raw, "resource", "accessKeyDetails", "accessKeyId")
             summary = _text_at(raw, "description")
-            # Probe findings can contain many IPs; do not invent a single source for those.
-            for action in ("awsApiCallAction", "networkConnectionAction"):
-                source_ip = _text_at(raw, "service", "action", action,
-                                     "remoteIpDetails", "ipAddressV4")
-                if source_ip is None:
-                    source_ip = _text_at(raw, "service", "action", action,
-                                         "remoteIpDetails", "ipAddressV6")
-                if source_ip is not None:
-                    break
+            source_ip = _guardduty_source_ip(raw)
         return {**alert_fields(alert), "accessKeyId": access_key,
                 "sourceIp": source_ip, "summary": summary}
 

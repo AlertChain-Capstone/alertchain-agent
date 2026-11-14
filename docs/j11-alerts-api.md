@@ -123,12 +123,15 @@ This snippet shows additional fields, not a separate response envelope.
 | CloudTrail `userIdentity.accessKeyId` | `accessKeyId`, always the caller's key, never a newly created target key |
 | CloudTrail `sourceIPAddress` | `sourceIp` |
 | GuardDuty `resource.accessKeyDetails.accessKeyId` | `accessKeyId` |
-| GuardDuty API-call/network-connection action `remoteIpDetails.ipAddressV4` or `ipAddressV6` | `sourceIp` |
+| GuardDuty API-call action `remoteIpDetails.ipAddressV4` or `ipAddressV6` | `sourceIp` |
+| GuardDuty network-connection action | `sourceIp`: remote IP for INBOUND, local IP for OUTBOUND; null when direction or the source endpoint is unavailable |
 | GuardDuty `description` | `summary` |
 | Selected CloudTrail event name | Factual event-specific summary |
 
 Unknown access keys, IPs, and summaries are null. Multi-IP probe findings do not invent a
 single source IP. Ingestion still writes status `New`; J11 adds no status-transition writes.
+Network destination IPs are not relabeled as source IPs; see the
+[GuardDuty network action fields](https://docs.aws.amazon.com/guardduty/latest/APIReference/API_NetworkConnectionAction.html).
 Adding the existing UI status labels to the enum makes reads compatible without changing
 what ingestion writes. FA1 includes a Critical filter option and danger badge treatment.
 
@@ -362,7 +365,9 @@ the list filters/page to their defaults. All time omits `from`
 but retains the reference-time upper bound, matching the prototype's exclusion of future
 events. Mock mode uses `2026-10-17T16:00:00Z` and the existing fixtures/scenarios. Empty lists,
 filtered-empty results, transient errors, and a page that became out of range have distinct
-states. Exact totals come from the response, not a second frontend filtering pass.
+states. An out-of-range live page is explicitly marked unavailable and offers a return to
+page one, including when the matching total drops to zero. Exact totals come from the
+response, not a second frontend filtering pass.
 
 Normalized details load first. Once they succeed, raw-event and incident requests start
 independently. Each optional section owns its loading/error/retry state, leaving details
@@ -399,3 +404,22 @@ No FA2/FA3 files or shared shell handoff implementation were changed.
 The controlled HTTP tests verify frontend behavior independently of the actual Floci checks
 recorded above. Independent browser Network-panel inspection, real AWS verification, and
 FA2/FA3 live handoffs remain pending.
+
+### Pre-push review fixes (not redeployed)
+
+Review against main base `c6da7ccb78155dfe2ac6fe7ce81042b11539e340` reproduced and fixed:
+
+- GuardDuty network source-IP derivation previously treated a remote destination as the
+  source on outbound connections. It now uses direction and preserves null for unknown sources.
+- Impossible numeric timezone offsets such as `+00:99` were normalized by Python instead
+  of rejected. The API now rejects invalid offset hours/minutes with 400 before querying.
+- A retained list page could display `Page 2 of 1`, and when its total fell to zero it lost
+  the explicit page-recovery state. It now marks the page unavailable and offers page one.
+
+Regression coverage includes these cases and an isolated cold-start check proving FA1 reads
+do not import FastAPI. Tests used local fakes/controlled browser responses; this review did
+not redeploy or rerun the unchanged Floci integration checks. The Floci checkpoint above
+describes the deployed checkpoint, not verification of these newer review fixes.
+
+The exact class, operation, data, sequence, and deployment-diagram changes are listed in
+[J11 Visual Paradigm updates](j11-visual-paradigm-updates.md). No Visual Paradigm project was edited.

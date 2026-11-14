@@ -32,6 +32,7 @@ export default function AlertsList({ filters, setFilters, page, setPage, onOpenA
   const total = read.data?.totalAlerts ?? 0
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const displayedPage = client.mock ? Math.min(page, pageCount) : page
+  const pageUnavailable = !client.mock && page > pageCount
   const offset = (page - 1) * PAGE_SIZE
   const filtered = Boolean(filters.search.trim() || filters.severity || filters.source || filters.status || filters.timeRange !== 'all')
   const demoEmpty = client.mock && demoScenario === 'empty'
@@ -95,6 +96,11 @@ export default function AlertsList({ filters, setFilters, page, setPage, onOpenA
           <p>Check your connection and try again. Your filters and page are preserved.</p>
           <button type="button" onClick={read.retry}>Retry alerts</button>
         </div>
+      ) : pageUnavailable || (total > 0 && visibleAlerts.length === 0) ? (
+        <div className="fa1-card fa1-empty">
+          <p role="status">This page is no longer available.</p>
+          <button type="button" onClick={() => setPage(1)}>Return to first page</button>
+        </div>
       ) : total === 0 && (demoEmpty || !filtered) ? (
         <div className="fa1-card fa1-empty">
           <h2>No alerts available</h2>
@@ -105,11 +111,6 @@ export default function AlertsList({ filters, setFilters, page, setPage, onOpenA
         <div className="fa1-card fa1-empty">
           <p role="status">No alerts match your filters</p>
           <button type="button" onClick={clearFilters}>Clear filters</button>
-        </div>
-      ) : visibleAlerts.length === 0 ? (
-        <div className="fa1-card fa1-empty">
-          <p role="status">This page is no longer available.</p>
-          <button type="button" onClick={() => setPage(1)}>Return to first page</button>
         </div>
       ) : (
         <div className="fa1-table-wrapper fa1-alerts-table-wrapper" role="region" aria-label="Alerts table" tabIndex={0}>
@@ -145,7 +146,7 @@ export default function AlertsList({ filters, setFilters, page, setPage, onOpenA
         </p>
         <nav className="fa1-actions" aria-label="Alerts pagination">
           <button disabled={displayedPage === 1} onClick={() => setPage(displayedPage - 1)}>Previous</button>
-          <span className="fa1-muted">Page {displayedPage} of {pageCount}</span>
+          <span className="fa1-muted">{pageUnavailable ? `Page ${page} unavailable` : `Page ${displayedPage} of ${pageCount}`}</span>
           <button disabled={displayedPage >= pageCount} onClick={() => setPage(displayedPage + 1)}>Next</button>
         </nav>
       </div>}

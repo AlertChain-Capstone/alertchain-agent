@@ -241,3 +241,29 @@ test('live list and detail retain the narrow-screen layout and contain wide cont
   await expect(page.getByLabel('Raw event JSON')).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
+
+for (const remaining of [0, 1]) {
+  test(`out-of-range list page recovers after records shrink to ${remaining}`, async ({ page }) => {
+    let shrunk = false
+    const calls = await installApi(page, (path, url) => {
+      if (path !== '/alerts') return defaultReply(path, url)
+      const number = Number(url.searchParams.get('page'))
+      const total = shrunk ? remaining : 7
+      const offset = (number - 1) * 6
+      return payload({ alerts: Array.from({ length: Math.min(6, Math.max(0, total - offset)) },
+        (_, index) => row(`LIVE-${offset + index + 1}`)), totalAlerts: total, page: number, pageSize: 6 })
+    })
+    await page.goto('/#/alerts')
+    await expect(page.getByText('Page 1 of 2', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Next', exact: true }).click()
+    await page.getByRole('button', { name: 'LIVE-7', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'LIVE-7 · StopLogging' })).toBeVisible()
+    shrunk = true
+    await page.getByRole('button', { name: 'Back to alerts' }).click()
+    await expect(page.getByText('This page is no longer available.', { exact: true })).toBeVisible()
+    await expect(page.getByText('Page 2 unavailable', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Return to first page' }).click()
+    await expect(page.getByText('Page 1 of 1', { exact: true })).toBeVisible()
+    expect(calls.filter((call) => call.path === '/alerts').at(-1).url.searchParams.get('page')).toBe('1')
+  })
+}
