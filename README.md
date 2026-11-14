@@ -278,6 +278,14 @@ The container and stack remain available for later sessions; do not recreate or 
 
 CloudTrail ingestion accepts only `aws.iam / iam.amazonaws.com / CreateAccessKey` and `aws.cloudtrail / cloudtrail.amazonaws.com / StopLogging` with detail type `AWS API Call via CloudTrail`. Unselected events return `outcome: ignored` without writing; malformed selected events fail before storage. Caller identity comes from `userIdentity` (user name or assumed-role issuer name when available), separately from the target user/trail in `resource`. Original detail is preserved as `rawEvent`. Severity defaults are provisionally `MEDIUM` for CreateAccessKey and `HIGH` for StopLogging, matching the INC-001/FA1 fixture examples; no formal severity policy is defined in the repo. Synthetic examples live in `backend/tests/fixtures/cloudtrail_create_access_key.json` and `cloudtrail_stop_logging.json`. The EventBridge smoke test below publishes these synthetic events through Floci; it never calls the actual IAM or CloudTrail actions.
 
+### J11 FA1 backend reads
+
+The backend now implements separate list, normalized-detail, raw-event, and associated-incident
+reads while retaining the single Lambda and existing ingestion. The contract, numbered-page
+read costs, temporary ambiguity behavior, CORS configuration, and pending integration checks
+are documented in [J11 FA1 backend contract](docs/j11-alerts-api.md). These source changes do
+not deploy routes or connect FA1's fixture-based frontend; Floci verification remains pending.
+
 ### Local frontend website (Floci only)
 
 With the existing `alertchain-floci` container running, use Windows PowerShell 5.1+, Node.js/npm (compatible with the installed Vite version), and AWS CLI v2. From the repository root:
