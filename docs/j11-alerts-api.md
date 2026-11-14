@@ -1,7 +1,8 @@
 # J11 FA1 backend contract
 
-This is the implemented backend contract, pending deployment and Floci verification.
-FA1 frontend integration is implemented in source; live Floci verification remains pending.
+This is the implemented backend contract. Local Floci deployment, API checks, and the
+reported Chrome live-screen checks passed on November 14, 2026; independent browser
+Network-panel inspection and real AWS verification remain pending.
 The existing single Lambda, ingestion writes,
 health response, FA2/FA3 repository interfaces, table keys and indexes are preserved.
 
@@ -232,26 +233,92 @@ Backend tests: `python -B -m pytest backend/tests -q -p no:cacheprovider`, using
 with pytest, boto3/botocore, FastAPI and httpx already available. Tests make no AWS requests.
 The focused contract tests are in `backend/tests/test_alert_reads.py`.
 
-Before Floci completion:
+### Local Floci checkpoint — November 14, 2026
 
-1. The shared client and FA1 screens are connected in source, with mock mode, field mappings,
-   numbered pages, a fixed fixture clock, and independent optional loading/retry states.
-2. Review the frontend configuration below and use the actual local API URL for live testing.
-3. Coordinate real UUID alert handoff with FA2 and live incident reporting with FA3.
-4. After deployment authorization, update the existing local backend stack and configure
-   the actual frontend origin. Verify processed routes, CORS/preflight and scoped IAM.
-5. Run the existing J10 Floci EventBridge ingestion smoke test, then exercise all four
-   endpoints for the generated IDs. Use All time or fixture-appropriate time bounds;
-   J10 fixtures contain older timestamps. Allow bounded retries for GSI propagation.
-6. Verify search, combined filters, page totals/ties/boundaries, missing records, raw JSON,
-   and zero/one/multiple incident outcomes using isolated synthetic incident records.
-7. Verify the live browser Network/Console and independent retry behavior. Separately
-   regress mock mode: the existing Floci frontend deploy script forces mock mode and
-   cannot prove live integration unchanged.
-8. Record Floci findings separately from AWS IAM/CORS parity checks. SAM CLI is not present
-   in the inspected environment; offline YAML/structure checks are not SAM transform validation.
+Deployment and API checks passed against the existing `alertchain-local` stack in
+`alertchain-floci` at `127.0.0.1:4566`, region `us-east-2`. No real AWS services were accessed.
+The stack retained one Lambda, all four table physical IDs, and every pre-update record.
+SAM CLI was unavailable; Python syntax validation, Floci `validate-template`, AWS CLI
+`cloudformation package`, and an inspected UPDATE change set were used instead. This does
+not establish validation through SAM CLI or real AWS.
 
-No deployment or Floci mutation is part of this backend implementation step.
+The API ID was discovered from the stack resources and checked through API Gateway metadata.
+Floci returns an AWS-shaped `ApiEndpoint`; that public hostname was not requested. The
+documented Floci hostname using the discovered ID was resolved to loopback and verified:
+
+- API: `http://f863b23b16.execute-api.localhost.floci.io:4566`
+- Live frontend: `http://127.0.0.1:5173/#/alerts`
+
+The frontend URL requires its local Vite process to remain running. The API ID is specific
+to this existing stack; reruns discover it rather than relying on this recorded value.
+Use All time when browsing the ingestion fixtures, whose event times are November 1.
+
+| Check | Result |
+| --- | --- |
+| Existing J10 smoke test through EventBridge | Passed for fresh synthetic GuardDuty, CreateAccessKey, and StopLogging events |
+| Actual HTTP alert list/detail and raw-event reads | Passed; returned raw detail matched the source fixtures, with their generated identity fields |
+| Search, combined filters, inclusive time bounds | Passed |
+| Numbered pagination, exact totals, stable descending time/ID order | Passed, including no duplicate rows and an out-of-range page |
+| Missing-alert and invalid/repeated-input responses | Passed: expected 404 and 400 responses |
+| Incident association | Passed for none, one associated ID, and explicit ambiguity for multiple matches |
+| Duplicate handling | Acknowledged synchronous Lambda redeliveries returned duplicate and preserved complete stored alerts, including creation times; initial ingestion was independently verified through EventBridge |
+| Data preservation | Passed; original data remained unchanged and only the verification run's synthetic incident records were removed |
+| CORS | Allowed frontend origin received headers/preflight response; unrelated origin received no allow-origin header |
+
+Floci's SAM transform omitted `CorsConfiguration`; initial preflight returned 404. The
+local-only verification helper applies the declared settings through `apigatewayv2 update-api`
+when absent/different, then checks metadata and preflight. This is an emulator workaround,
+not a change to the application's AWS template or evidence of AWS IAM/CORS parity.
+
+Chrome browser review, reported by the reviewer and recorded at this checkpoint:
+
+- Passed live alert listing, pagination, combined search/source filtering, alert details,
+  raw JSON display, returning to the list, and detail-page refresh against Floci.
+- No warnings or errors appeared in the captured browser logs.
+- List filters reset after a full refresh. Filters/page survive ordinary detail/back
+  navigation; they are held in React state and are not persisted across full reloads.
+- The browser Network panel was **not independently inspected**. Successful screens and
+  captured logs do not establish a complete network-request audit.
+
+Remaining work: independently inspect browser Network requests; verify real AWS deployment,
+IAM and CORS behavior in a separately authorized sandbox session; and coordinate live alert
+handoff with FA2 and live reports with FA3. Those live handoffs remain disabled in FA1.
+Independent optional-request failure/retry and stale-response behavior passed the controlled
+frontend tests; they were not separately fault-injected in this Floci browser review.
+
+### Repeatable local verification helper
+
+Prerequisites: Python 3.11+, AWS CLI v2, PowerShell 5.1+ for the existing ingestion script,
+and the existing running Floci stack/container. The helper does not install dependencies,
+create a replacement stack, tear down resources, or start the frontend server.
+
+```powershell
+python -B scripts/floci-j11.py inspect
+python -B scripts/floci-j11.py deploy --origin http://127.0.0.1:5173
+python -B scripts/floci-j11.py verify --origin http://127.0.0.1:5173
+```
+
+`inspect` is read-only. `deploy` packages a temporary backend copy excluding tests, bytecode,
+and .env files into the existing local artifact bucket, rejects change sets with resource
+removals or replacements, updates the existing stack, and compares table IDs and stored
+records before/after. `verify` runs the existing smoke script with fresh IDs, then exercises
+the real HTTP endpoints. To reuse exactly three IDs from an already-passed smoke run, pass
+`--alert-ids <guardduty-id>,<create-access-key-id>,<stop-logging-id>` instead.
+
+All AWS CLI calls explicitly use the fixed loopback endpoint and dummy credentials in
+child-process environments. Inherited profiles and endpoint overrides are removed, including
+for the nested package uploader and ingestion smoke script. API HTTP requests use a discovered
+Floci hostname only after checking loopback resolution. Parent environment settings are not
+changed. Generated packages, snapshots, payloads, and results stay under the printed OS
+temporary evidence directory; they are not repository source or commit inputs.
+
+Each fresh smoke run leaves three synthetic alert records. Association checks conditionally
+create two uniquely named synthetic incidents, then conditionally delete only records owned
+by that verification run. Existing alerts and incidents are never deleted. Post-verification
+snapshots check that baseline data is unchanged. Run without concurrent writers so exact
+snapshot comparisons are meaningful; do not use Python optimization flags, which disable
+the verification assertions. Verification does not prove production-scale performance or
+replace independent browser/AWS checks.
 
 ## FA1 frontend configuration and behavior
 
@@ -290,7 +357,8 @@ and is not evidence of live integration.
 
 List filters run on the server in live mode. The client translates severity labels and time
 ranges into API values. A filter change freezes one reference time and resets page to one;
-page changes, Retry, and detail/back navigation retain that window. All time omits `from`
+page changes, Retry, and detail/back navigation retain that window. A full refresh resets
+the list filters/page to their defaults. All time omits `from`
 but retains the reference-time upper bound, matching the prototype's exclusion of future
 events. Mock mode uses `2026-10-17T16:00:00Z` and the existing fixtures/scenarios. Empty lists,
 filtered-empty results, transient errors, and a page that became out of range have distinct
@@ -328,5 +396,6 @@ No FA2/FA3 files or shared shell handoff implementation were changed.
 - If the installed Playwright Chromium version is absent, use installed Edge with
   `$env:PW_CHANNEL = 'msedge'` before either browser command; no browser install is required.
 
-The controlled HTTP tests verify frontend behavior, not an actual Lambda/Floci round trip
-or CORS across origins. The outstanding Floci checklist above still applies.
+The controlled HTTP tests verify frontend behavior independently of the actual Floci checks
+recorded above. Independent browser Network-panel inspection, real AWS verification, and
+FA2/FA3 live handoffs remain pending.

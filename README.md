@@ -283,9 +283,13 @@ CloudTrail ingestion accepts only `aws.iam / iam.amazonaws.com / CreateAccessKey
 The backend now implements separate list, normalized-detail, raw-event, and associated-incident
 reads while retaining the single Lambda and existing ingestion. The contract, numbered-page
 read costs, temporary ambiguity behavior, CORS configuration, and pending integration checks
-are documented in [J11 FA1 backend contract](docs/j11-alerts-api.md). These source changes do
-not deploy routes; FA1 now supports live/mock reads through `src/shared/api.js`, while Floci
-verification remains pending. Set `VITE_API_URL` to the actual API base URL and
+are documented in [J11 FA1 contract and local verification](docs/j11-alerts-api.md).
+Floci deployment/API checks and the reported Chrome live-screen checks passed. Captured browser
+logs contained no warnings/errors; the Network panel was not independently inspected.
+List filters reset on full refresh. Real AWS verification and FA2/FA3 live handoffs remain pending.
+Use `python -B scripts/floci-j11.py inspect`, `deploy`, or `verify` for the documented local-only
+workflow, preserving the existing stack/data. FA1 supports live/mock reads through
+`src/shared/api.js`. Set `VITE_API_URL` to the actual API base URL and
 `VITE_USE_MOCK=false` for live FA1 reads, or `VITE_USE_MOCK=true` to preserve fixtures. With
 no URL, mock mode remains the default. Live request failures never substitute fixture data.
 See the contract document for independent detail requests, configuration compatibility,
@@ -313,7 +317,10 @@ This deployment forces `VITE_USE_MOCK=true` at build time and overrides the API 
 | FA2 investigations, reasoning trace, attack chain | Fixtures and simulated investigations in this build. Its optional live client uses `POST /investigations` and `GET /investigations/{id}` polling when a base URL is configured and mock mode is off. |
 | FA3 dashboard, incidents, reports, Ask the Agent | `src/mock/fa3.json`, in-memory state, and canned answers; no backend calls. |
 
-The deployed Lambda HTTP entry point currently exposes only `GET /health`; this website does not call it or display ingested DynamoDB records. Live investigations require backend routing/integration and cross-origin access before enabling the API client in a separate build.
+The local Floci Lambda now exposes the J11 alert-read routes as well as `GET /health`.
+This S3 website remains a mock build and does not display ingested DynamoDB records;
+the J11 live frontend was verified separately through Vite. Live investigations still
+require backend routing/integration before enabling the FA2 client in a separate build.
 
 Browser verification checklist (the script's HTTP check does **not** complete these checks):
 
