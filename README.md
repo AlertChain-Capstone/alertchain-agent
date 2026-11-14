@@ -284,7 +284,12 @@ The backend now implements separate list, normalized-detail, raw-event, and asso
 reads while retaining the single Lambda and existing ingestion. The contract, numbered-page
 read costs, temporary ambiguity behavior, CORS configuration, and pending integration checks
 are documented in [J11 FA1 backend contract](docs/j11-alerts-api.md). These source changes do
-not deploy routes or connect FA1's fixture-based frontend; Floci verification remains pending.
+not deploy routes; FA1 now supports live/mock reads through `src/shared/api.js`, while Floci
+verification remains pending. Set `VITE_API_URL` to the actual API base URL and
+`VITE_USE_MOCK=false` for live FA1 reads, or `VITE_USE_MOCK=true` to preserve fixtures. With
+no URL, mock mode remains the default. Live request failures never substitute fixture data.
+See the contract document for independent detail requests, configuration compatibility,
+disabled live FA2/FA3 handoffs, and `npm run test:fa1-live` verification.
 
 ### Local frontend website (Floci only)
 

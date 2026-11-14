@@ -5,6 +5,7 @@ import MonitoredEventsEditor from './MonitoredEventsEditor'
 import AlertsList from './AlertsList'
 import AlertDetail from './AlertDetail'
 import SecuritySources from './SecuritySources'
+import { alertApi } from '../shared/api'
 import './fa1.css'
 
 const eventDetails = {
@@ -23,9 +24,16 @@ export default function Fa1App({ onInvestigate, onOpenIncident, route, active })
   const [monitoredEvents, setMonitoredEvents] = useState(data.monitoredEvents)
   const view = route?.view ?? 'sources'
   const setView = (next) => navigate(next === 'sources' ? '/sources' : '/alerts')
-  const [alertFilters, setAlertFilters] = useState({
+  const [alertFilters, setAlertFiltersState] = useState(() => ({
     search: '', severity: '', source: '', status: '', timeRange: '24',
-  })
+    referenceTime: alertApi.referenceTime(),
+  }))
+  function setAlertFilters(next) {
+    setAlertFiltersState((current) => ({
+      ...(typeof next === 'function' ? next(current) : next),
+      referenceTime: alertApi.referenceTime(),
+    }))
+  }
   const [alertPage, setAlertPage] = useState(1)
   const [alertsDemo, setAlertsDemo] = useState('sample')
   const [selectedAlertId, setSelectedAlertId] = useState(null)
@@ -76,13 +84,13 @@ export default function Fa1App({ onInvestigate, onOpenIncident, route, active })
     recoveryTimers.current.set(source.id, timer)
   }
 
-  useEffect(() => {
-    if (active && view === 'alerts' && restoreAlertFocus.current) {
+  function restoreListFocus() {
+    if (restoreAlertFocus.current) {
       const target = document.getElementById(`open-${selectedAlertId}`) ?? document.getElementById('alerts-heading')
       target?.focus()
       restoreAlertFocus.current = false
     }
-  }, [view, selectedAlertId, active])
+  }
 
   function openAlert(id) {
     setSelectedAlertId(id)
@@ -116,6 +124,8 @@ export default function Fa1App({ onInvestigate, onOpenIncident, route, active })
     )
   }
 
+  if (!active) return null
+
   return (
     <main className="fa1-page" id="fa1-content" tabIndex={-1}>
       <nav className="fa1-nav" aria-label="Alerts and sources">
@@ -129,7 +139,7 @@ export default function Fa1App({ onInvestigate, onOpenIncident, route, active })
       {view === 'detail' ? (
         <AlertDetail
           key={route.params.id}
-          alert={data.alerts.find((alert) => alert.id === route.params.id)}
+          alertId={route.params.id}
           onBack={backToAlerts}
           onInvestigate={onInvestigate}
           onOpenIncident={onOpenIncident}
@@ -147,7 +157,9 @@ export default function Fa1App({ onInvestigate, onOpenIncident, route, active })
           </p>
 
           <p className="fa1-demo">
-            Inception prototype — fictional data and simulated connections
+            {view === 'sources' || alertApi.mock
+              ? 'Inception prototype — fictional data and simulated connections'
+              : 'Live alerts'}
           </p>
 
           {message && (
@@ -158,12 +170,12 @@ export default function Fa1App({ onInvestigate, onOpenIncident, route, active })
 
           {view === 'alerts' ? (
             <AlertsList
-              alerts={data.alerts}
               filters={alertFilters}
               setFilters={setAlertFilters}
               page={alertPage}
               setPage={setAlertPage}
               onOpenAlert={openAlert}
+              onReady={restoreListFocus}
               demoScenario={alertsDemo}
               onDemoChange={setAlertsDemo}
               onViewSources={() => setView('sources')}

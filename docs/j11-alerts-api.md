@@ -1,7 +1,8 @@
 # J11 FA1 backend contract
 
 This is the implemented backend contract, pending deployment and Floci verification.
-Frontend integration is a separate step. The existing single Lambda, ingestion writes,
+FA1 frontend integration is implemented in source; live Floci verification remains pending.
+The existing single Lambda, ingestion writes,
 health response, FA2/FA3 repository interfaces, table keys and indexes are preserved.
 
 ## Operations and routes
@@ -116,7 +117,7 @@ This snippet shows additional fields, not a separate response envelope.
 | `eventTime` | `occurredAt` |
 | `createdTime` | `createdAt` |
 | `eventName`, `source`, `status`, `region` | Same field names and stored values |
-| `severity` | Uppercase enum; future client maps to Low/Medium/High/Critical labels |
+| `severity` | Uppercase enum; shared client maps to Low/Medium/High/Critical labels |
 | Missing/null `principal` or `resource` | Explicit JSON null; UI shows Not available and searches safely |
 | CloudTrail `userIdentity.accessKeyId` | `accessKeyId`, always the caller's key, never a newly created target key |
 | CloudTrail `sourceIPAddress` | `sourceIp` |
@@ -128,7 +129,7 @@ This snippet shows additional fields, not a separate response envelope.
 Unknown access keys, IPs, and summaries are null. Multi-IP probe findings do not invent a
 single source IP. Ingestion still writes status `New`; J11 adds no status-transition writes.
 Adding the existing UI status labels to the enum makes reads compatible without changing
-what ingestion writes. Critical still needs a frontend filter option and badge treatment.
+what ingestion writes. FA1 includes a Critical filter option and danger badge treatment.
 
 ## Raw event
 
@@ -231,11 +232,11 @@ Backend tests: `python -B -m pytest backend/tests -q -p no:cacheprovider`, using
 with pytest, boto3/botocore, FastAPI and httpx already available. Tests make no AWS requests.
 The focused contract tests are in `backend/tests/test_alert_reads.py`.
 
-Before frontend/Floci completion:
+Before Floci completion:
 
-1. Add `src/shared/api.js`, preserving mock mode, field mappings, page numbers and fixture clock.
-2. Connect FA1 list and three independently managed detail requests. Retain normalized
-   details during optional failures; add retry, loading, null and ambiguous states.
+1. The shared client and FA1 screens are connected in source, with mock mode, field mappings,
+   numbered pages, a fixed fixture clock, and independent optional loading/retry states.
+2. Review the frontend configuration below and use the actual local API URL for live testing.
 3. Coordinate real UUID alert handoff with FA2 and live incident reporting with FA3.
 4. After deployment authorization, update the existing local backend stack and configure
    the actual frontend origin. Verify processed routes, CORS/preflight and scoped IAM.
@@ -251,3 +252,81 @@ Before frontend/Floci completion:
    in the inspected environment; offline YAML/structure checks are not SAM transform validation.
 
 No deployment or Floci mutation is part of this backend implementation step.
+
+## FA1 frontend configuration and behavior
+
+`src/shared/api.js` exports `AlertApiClient` with `listAlerts`, `getAlertDetails`,
+`getRawEvent`, and `getAssociatedIncidentId`. Operations return mapped alert fields or the
+raw/association envelopes documented above. They accept an optional `{ signal }` argument;
+for list calls it is the fourth argument, after filter/page/pageSize. The client validates
+response identities, pagination metadata, and association outcomes before displaying them.
+
+| Configuration | FA1 behavior |
+| --- | --- |
+| `VITE_USE_MOCK=true` | Fixtures, even if an API URL is configured; no FA1 API calls |
+| No nonblank API URL configured | Fixtures, preserving the existing default convention |
+| `VITE_API_URL` configured and mock is not `true` | Live FA1 reads |
+| Only legacy `VITE_API_BASE_URL` configured | Live FA1 reads, for compatibility |
+| Both URL variables configured | FA1 uses `VITE_API_URL` |
+
+Vite settings are applied when starting the dev server or building. Restart/rebuild after
+changing them. In PowerShell, for a local development session:
+
+```powershell
+$env:VITE_API_URL = '<actual local API Gateway base URL, including any stage>'
+$env:VITE_USE_MOCK = 'false'
+npm run dev
+```
+
+Use the actual deployed API base URL, not Floci's service endpoint by assumption. CORS must
+allow the frontend's complete origin. Do not put AWS credentials or other secrets in Vite
+variables: those variables are public frontend configuration. No .env file is required.
+
+To return to mock mode, set `VITE_USE_MOCK=true` and restart/rebuild. An explicit live request
+failure never falls back to fixtures. Invalid successful responses also remain errors. Sources
+and monitored-event editing remain simulated regardless of FA1 alert mode and retain their
+prototype labels. The existing Floci frontend deploy script forces mock mode; it is unchanged
+and is not evidence of live integration.
+
+List filters run on the server in live mode. The client translates severity labels and time
+ranges into API values. A filter change freezes one reference time and resets page to one;
+page changes, Retry, and detail/back navigation retain that window. All time omits `from`
+but retains the reference-time upper bound, matching the prototype's exclusion of future
+events. Mock mode uses `2026-10-17T16:00:00Z` and the existing fixtures/scenarios. Empty lists,
+filtered-empty results, transient errors, and a page that became out of range have distinct
+states. Exact totals come from the response, not a second frontend filtering pass.
+
+Normalized details load first. Once they succeed, raw-event and incident requests start
+independently. Each optional section owns its loading/error/retry state, leaving details
+visible. Null raw events remain distinct from failed retrieval; copy is disabled until JSON
+is available. A missing normalized alert shows the unavailable state; transient detail failures
+offer Retry. Request cleanup aborts fetch and guards late completions; response keys also
+prevent an older filter's data from appearing during a newer request.
+
+### Teammate handoff boundaries
+
+Mock Investigate and Open incident retain their existing fixture handoffs. Live mode disables
+both actions, including for IDs that happen to resemble fixtures, and explains that live
+investigations/reports are not connected. Associated live IDs still display as read-only
+information; none and ambiguous states offer no incident action.
+
+The reason is the current shared shell forwards only `alert.id` to FA2, whose imperative
+handoff resolves it with `alertById` from fixtures. FA3 similarly resolves incident reports
+from fixtures. `VITE_API_URL` configures FA1; FA2's unchanged optional client still uses
+`VITE_API_BASE_URL`. Configuring FA1 does not connect teammates' screens, nor does setting
+the old variable fix the backend investigation HTTP/job dispatch gaps described above.
+No FA2/FA3 files or shared shell handoff implementation were changed.
+
+### Frontend verification
+
+- `npm test`: Node client/data tests, including FA1 live/error/abort/contract mapping and fixtures.
+- `npm run lint` and `npm run build`: static checks and production build.
+- `npm run test:e2e`: mock browser regressions and cross-area navigation; use mock configuration.
+- `npm run test:fa1-live`: separate Vite server on port 5180 with controlled live-mode HTTP
+  responses. Covers server query/page wiring, independent failures/retry/copy, association
+  states, stale responses even with a transport ignoring abort, and narrow-screen layout.
+- If the installed Playwright Chromium version is absent, use installed Edge with
+  `$env:PW_CHANNEL = 'msedge'` before either browser command; no browser install is required.
+
+The controlled HTTP tests verify frontend behavior, not an actual Lambda/Floci round trip
+or CORS across origins. The outstanding Floci checklist above still applies.

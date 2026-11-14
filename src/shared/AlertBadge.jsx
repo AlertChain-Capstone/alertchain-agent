@@ -1,6 +1,6 @@
 // Shared by the existing alert and investigation views.
 const colors = {
-  severity: { High: 'danger', Medium: 'warning', Low: 'neutral' },
+  severity: { Critical: 'danger', High: 'danger', Medium: 'warning', Low: 'neutral' },
   status: {
     New: 'info',
     'Under investigation': 'warning',
