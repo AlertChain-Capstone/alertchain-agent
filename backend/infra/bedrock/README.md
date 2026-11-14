@@ -110,6 +110,30 @@ Takeaways: Micro reasoned better in all 4 cases but rarely finished. Lite finish
 over-confident on U-4 and was blocked on S-2. The orchestrator already escalates to a human on
 `content_filtered`. Next: re-run at maxTokens 600 and repeat S-2 on Lite to see if it is always blocked.
 
+### Run 5: Micro vs Lite on 4 alerts, maxTokens 600 (Nov 13)
+
+Backend setting (600), temperature 0, us-east-2, repo `strip_thinking`. 16 runs, total cost $0.0024134.
+Every run finished except Lite's content-filter blocks. No tags leaked into any visible answer.
+
+| Alert | Micro | Lite |
+|---|---|---|
+| A-1 deploy/latency/pool | Linked deploy to latency and pool (narrowly better) | Named v2.14.0 as root cause, left out the pool |
+| S-2 IAM key abuse | Complete: Tor IP, bulk reads, new admin user, StopLogging, revoke keys | `content_filtered` |
+| B-3 nightly batch (benign) | Correct, suggested tuning the threshold | Correct, but treated the recurring job run as special |
+| U-4 VPN + secret (ambiguous) | Noticed the first-time VPN provider, not the missing ticket | Noticed neither, said "no unusual behavior", called the tool twice |
+
+S-2 content filter: Lite was blocked on 2 of 6 runs (about 33%, intermittent even at temperature 0).
+Micro was blocked on 0 of 4 and gave identical answers every time.
+
+Cost per finished run: Micro about $0.00009 to $0.00014, Lite about $0.00017 to $0.00027.
+
+Reading: on these 4 single-tool alerts Micro gave the better answer every time, was cheaper and was
+never blocked. The stated reason for choosing Lite (more reliable tool calling) did not show up, since
+both called the tool correctly. Caveats: 4 made-up alerts, one tool, one run each (except S-2). Try
+multi-tool and multi-step alerts before changing the default, and improve the system prompt (neither
+model mentioned the missing change ticket on U-4). The backend should handle `content_filtered`
+explicitly (the orchestrator already escalates to a human).
+
 ### Run 1: us-east-1, blocked
 
 | Field | Result |
