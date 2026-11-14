@@ -1,7 +1,8 @@
 """Parses a Converse response into a ModelTurn.
 
 Nova models put their reasoning in `<thinking>...</thinking>` inside the text output. The
-parser moves it to `ModelTurn.thinking` so it is never shown to users as the answer.
+parser moves it to `ModelTurn.thinking` so it is never shown to users as the answer. Nova Lite
+also wraps the final answer in `<answer>...</answer>`; those tags are removed, the text is kept.
 """
 
 from __future__ import annotations
@@ -14,6 +15,8 @@ _THINKING_BLOCK = re.compile(r"<thinking>(.*?)</thinking>", re.IGNORECASE | re.D
 # An opening tag with no close, e.g. output cut off by maxTokens.
 _THINKING_UNCLOSED = re.compile(r"<thinking>(.*)\Z", re.IGNORECASE | re.DOTALL)
 _STRAY_TAG = re.compile(r"</?thinking>", re.IGNORECASE)
+# Nova Lite wraps its final answer in <answer>...</answer>; keep the content, drop the tags.
+_ANSWER_TAG = re.compile(r"</?answer>", re.IGNORECASE)
 
 
 def strip_thinking(text: str) -> tuple[str, list[str]]:
@@ -25,6 +28,7 @@ def strip_thinking(text: str) -> tuple[str, list[str]]:
         thoughts.append(unclosed.group(1).strip())
         visible = visible[: unclosed.start()]
     visible = _STRAY_TAG.sub("", visible)
+    visible = _ANSWER_TAG.sub("", visible)
     return visible.strip(), [t for t in thoughts if t]
 
 

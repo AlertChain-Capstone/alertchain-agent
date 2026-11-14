@@ -46,7 +46,7 @@ created by `aws login`.
 
 ### Run 2: us-east-2, worked
 
-> Team decision (Nov 12): the backend default is now **Nova Lite** (`us.amazon.nova-lite-v1:0`) for more reliable tool calling. This run was measured on Nova Micro, so re-run the spike on Lite before relying on the token and cost figures below.
+> Team decision (Nov 12): the backend default is now **Nova Lite** (`us.amazon.nova-lite-v1:0`) for more reliable tool calling. The table below was measured on Nova Micro. The Nova Lite re-run (Nov 13) is in "Run 3" below.
 
 | Field | Result |
 |---|---|
@@ -69,6 +69,29 @@ Findings for the backend:
   tool or loop step adds tokens.
 - **Run cost:** about $0.0001 per investigation of this size, or roughly 11,700 investigations
   per $1.
+
+### Run 3: us-east-2, Nova Lite (Nov 13)
+
+| Field | Nova Lite (this run) | Nova Micro (Run 2) |
+|---|---|---|
+| Model ID | `us.amazon.nova-lite-v1:0` | `us.amazon.nova-micro-v1:0` |
+| Tool call | `get_related_events(alert_id='A-1')` | same |
+| Final stopReason | `end_turn` | `end_turn` |
+| Converse calls | 2 | 2 |
+| Tokens (in + out) | 1,209 + 334 | 1,213 + 308 |
+| Estimated cost | $0.0001527 | $0.0000856 |
+| Investigations per $1 | about 6,500 | about 11,700 |
+
+Cost: 1,209 × $0.06/1M + 334 × $0.24/1M. Lite is about 1.8x the cost of Micro and still tiny per
+investigation. No AWS resources were created by the spike.
+
+Findings:
+- **Nova Lite also wraps its final answer in `<answer>...</answer>`.** `ModelResponseParser` now
+  strips those tags (it already removed `<thinking>` text), so users never see raw tags.
+- **One run is not a model comparison.** On this single alert at temperature 0, Lite treated the
+  exhausted payments-db connection pool as unrelated, while Micro linked the deploy, the latency
+  and the pool and suggested a rollback. Run both models on several sample alerts before drawing
+  conclusions about answer quality.
 
 ### Run 1: us-east-1, blocked
 

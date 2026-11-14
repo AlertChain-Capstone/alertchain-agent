@@ -18,6 +18,8 @@ from infra.bedrock import (
         ("Partial answer <thinking>cut off by maxTok", "Partial answer", ["cut off by maxTok"]),
         ("No reasoning here", "No reasoning here", []),
         ("stray </thinking> tag", "stray  tag", []),
+        ("<thinking>why</thinking><answer>Roll back v2.14.0.</answer>", "Roll back v2.14.0.", ["why"]),
+        ("<answer>Partial", "Partial", []),
     ],
 )
 def test_strip_thinking(raw, visible, thoughts):
