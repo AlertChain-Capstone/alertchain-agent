@@ -16,8 +16,8 @@ and us-east-2. Tool use support comes from each model's card in the Bedrock User
 
 | # | Model | Input | Output | Model ID to use |
 |---|---|---|---|---|
-| 1 | Amazon Nova Micro | $0.035 | $0.14 | `amazon.nova-micro-v1:0` (us-east-1 only) / `us.amazon.nova-micro-v1:0` |
-| 2 | Amazon Nova Lite (chosen) | $0.06 | $0.24 | `us.amazon.nova-lite-v1:0` (AWS lists no in-Region endpoint in us-east-2, so use the US inference profile) |
+| 1 | Amazon Nova Micro (chosen) | $0.035 | $0.14 | `amazon.nova-micro-v1:0` (us-east-1 only) / `us.amazon.nova-micro-v1:0` |
+| 2 | Amazon Nova Lite | $0.06 | $0.24 | `us.amazon.nova-lite-v1:0` (AWS lists no in-Region endpoint in us-east-2, so use the US inference profile) |
 | 3 | Claude Haiku 5.5 | $0.11 (`us.`) / $0.10 (`global.`) | $0.55 / $0.50 | `us.anthropic.claude-haiku-5-5` / `global.anthropic.claude-haiku-5-5` |
 
 Other models checked: Claude 3 Haiku ($0.25 / $1.25) and Nova 2 Lite ($0.30–0.33 / $2.50–2.75).
@@ -46,7 +46,7 @@ created by `aws login`.
 
 ### Run 2: us-east-2, worked
 
-> Team decision (Nov 12): the backend default is now **Nova Lite** (`us.amazon.nova-lite-v1:0`) for more reliable tool calling. This run was measured on Nova Micro, so re-run the spike on Lite before relying on the token and cost figures below.
+> Model history: Nova Micro was chosen first, the team moved to Nova Lite on Nov 12, then back to **Nova Micro** (`us.amazon.nova-micro-v1:0`) on Nov 13 after the Micro vs Lite comparison in Runs 3 to 5 below (Micro gave better answers, cost about 30% less and was never content-filtered).
 
 | Field | Result |
 |---|---|
@@ -70,6 +70,70 @@ Findings for the backend:
 - **Run cost:** about $0.0001 per investigation of this size, or roughly 11,700 investigations
   per $1.
 
+### Run 3: us-east-2, Nova Lite (Nov 13)
+
+| Field | Nova Lite (this run) | Nova Micro (Run 2) |
+|---|---|---|
+| Model ID | `us.amazon.nova-lite-v1:0` | `us.amazon.nova-micro-v1:0` |
+| Tool call | `get_related_events(alert_id='A-1')` | same |
+| Final stopReason | `end_turn` | `end_turn` |
+| Converse calls | 2 | 2 |
+| Tokens (in + out) | 1,209 + 334 | 1,213 + 308 |
+| Estimated cost | $0.0001527 | $0.0000856 |
+| Investigations per $1 | about 6,500 | about 11,700 |
+
+Cost: 1,209 × $0.06/1M + 334 × $0.24/1M. Lite is about 1.8x the cost of Micro and still tiny per
+investigation. No AWS resources were created by the spike.
+
+Findings:
+- **Nova Lite also wraps its final answer in `<answer>...</answer>`.** `ModelResponseParser` now
+  strips those tags (it already removed `<thinking>` text), so users never see raw tags.
+- **One run is not a model comparison.** On this single alert at temperature 0, Lite treated the
+  exhausted payments-db connection pool as unrelated, while Micro linked the deploy, the latency
+  and the pool and suggested a rollback. Run both models on several sample alerts before drawing
+  conclusions about answer quality.
+
+### Run 4: Micro vs Lite on 4 alerts, maxTokens 300 (Nov 13)
+
+Total cost $0.0009825. Only 3 of 8 runs reached `end_turn`: 4 hit the 300 token cap (the models write
+long `<thinking>` text first) and 1 was blocked by Bedrock's content filter. The backend uses
+maxTokens 600, so this test was harsher than real use. Not a clean comparison.
+
+| Alert | Micro | Lite |
+|---|---|---|
+| A-1 deploy/latency/pool | Finished, linked deploy, latency and pool, gave next steps | Cut off before any root cause |
+| S-2 IAM key abuse (true positive) | Cut off inside `<thinking>` (reasoning was correct) | `content_filtered` |
+| B-3 nightly batch (benign) | Correct but cut off, raw `<response>` tag | Finished, correct, vague |
+| U-4 VPN + secret read (ambiguous) | Cut off on `</thinking` (reasoning was right) | Finished, but wrongly called it benign |
+
+Takeaways: Micro reasoned better in all 4 cases but rarely finished. Lite finished more often but was
+over-confident on U-4 and was blocked on S-2. The orchestrator already escalates to a human on
+`content_filtered`. Next: re-run at maxTokens 600 and repeat S-2 on Lite to see if it is always blocked.
+
+### Run 5: Micro vs Lite on 4 alerts, maxTokens 600 (Nov 13)
+
+Backend setting (600), temperature 0, us-east-2, repo `strip_thinking`. 16 runs, total cost $0.0024134.
+Every run finished except Lite's content-filter blocks. No tags leaked into any visible answer.
+
+| Alert | Micro | Lite |
+|---|---|---|
+| A-1 deploy/latency/pool | Linked deploy to latency and pool (narrowly better) | Named v2.14.0 as root cause, left out the pool |
+| S-2 IAM key abuse | Complete: Tor IP, bulk reads, new admin user, StopLogging, revoke keys | `content_filtered` |
+| B-3 nightly batch (benign) | Correct, suggested tuning the threshold | Correct, but treated the recurring job run as special |
+| U-4 VPN + secret (ambiguous) | Noticed the first-time VPN provider, not the missing ticket | Noticed neither, said "no unusual behavior", called the tool twice |
+
+S-2 content filter: Lite was blocked on 2 of 6 runs (about 33%, intermittent even at temperature 0).
+Micro was blocked on 0 of 4 and gave identical answers every time.
+
+Cost per finished run: Micro about $0.00009 to $0.00014, Lite about $0.00017 to $0.00027.
+
+Reading: on these 4 single-tool alerts Micro gave the better answer every time, was cheaper and was
+never blocked. The stated reason for choosing Lite (more reliable tool calling) did not show up, since
+both called the tool correctly. Caveats: 4 made-up alerts, one tool, one run each (except S-2). Try
+multi-tool and multi-step alerts before changing the default, and improve the system prompt (neither
+model mentioned the missing change ticket on U-4). The backend should handle `content_filtered`
+explicitly (the orchestrator already escalates to a human).
+
 ### Run 1: us-east-1, blocked
 
 | Field | Result |
@@ -88,7 +152,7 @@ the request, map tool definitions, and parse the response. The parser moves Nova
 
 | Env var | Default |
 |---|---|
-| `BEDROCK_MODEL_ID` | `us.amazon.nova-lite-v1:0` |
+| `BEDROCK_MODEL_ID` | `us.amazon.nova-micro-v1:0` |
 | `BEDROCK_REGION` | `us-east-2` |
 
 `maxTokens` is 600. Credentials come from the normal boto3 chain (e.g. `AWS_PROFILE`).

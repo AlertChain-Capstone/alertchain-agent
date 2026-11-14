@@ -6,7 +6,7 @@ get_related_events tool -> we return a fake tool result -> model gives a final a
 Run (boto3[crt] is required for credentials created by `aws login`):
     uv run --no-project --with "boto3[crt]" python backend/infra/bedrock/spike_converse.py
     uv run --no-project --with "boto3[crt]" python backend/infra/bedrock/spike_converse.py \
-        --region us-east-2 --model us.amazon.nova-lite-v1:0
+        --region us-east-2 --model us.amazon.nova-micro-v1:0
 """
 
 import argparse
@@ -72,7 +72,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", default="alertchain")
     parser.add_argument("--region", default="us-east-2")
-    parser.add_argument("--model", default="us.amazon.nova-lite-v1:0")
+    parser.add_argument("--model", default="us.amazon.nova-micro-v1:0")
     args = parser.parse_args()
 
     client = boto3.Session(profile_name=args.profile, region_name=args.region).client(
