@@ -1,17 +1,29 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import AlertBadge from './AlertBadge'
+import { alertApi } from '../shared/api'
+import useAlertRead from './useAlertRead'
 
-export default function AlertDetail({ alert, onBack, onInvestigate, onOpenIncident }) {
+export default function AlertDetail({ alertId, onBack, onInvestigate, onOpenIncident, client = alertApi }) {
   const headingRef = useRef(null)
   const [copyMessage, setCopyMessage] = useState('')
   const [copying, setCopying] = useState(false)
   const [simulateUnavailable, setSimulateUnavailable] = useState(false)
+  const loadDetails = useCallback((signal) => client.getAlertDetails(alertId, { signal }), [client, alertId])
+  const details = useAlertRead(alertId, loadDetails)
+  const alert = details.data
+  const loadRaw = useCallback((signal) => client.getRawEvent(alertId, { signal }), [client, alertId])
+  const loadAssociation = useCallback((signal) => client.getAssociatedIncidentId(alertId, { signal }), [client, alertId])
+  const raw = useAlertRead(alertId, loadRaw, Boolean(alert))
+  const association = useAlertRead(alertId, loadAssociation, Boolean(alert))
+  const incidentId = association.data?.incidentId
+  const canInvestigate = client.mock && Boolean(onInvestigate)
+  const canOpenIncident = client.mock && Boolean(onOpenIncident)
 
   useEffect(() => {
     headingRef.current?.focus()
-  }, [alert?.id, simulateUnavailable])
+  }, [alert?.id, details.status, simulateUnavailable])
 
-  const demoControl = alert && (
+  const demoControl = client.mock && alert && (
     <div className="fa1-scenario-controls fa1-alert-demo-controls">
       <div className="fa1-filter">
         <label htmlFor="alert-detail-demo-scenario">Alert details demo scenario</label>
@@ -36,20 +48,33 @@ export default function AlertDetail({ alert, onBack, onInvestigate, onOpenIncide
     </div>
   )
 
+  if (details.status === 'loading' || (details.status === 'error' && details.error.status !== 404)) {
+    return (
+      <section>
+        <h1 ref={headingRef} tabIndex={-1}>{details.status === 'loading' ? 'Loading alert details…' : 'Alert details could not be loaded'}</h1>
+        {details.status === 'error' && <div role="alert">
+          <p>Check your connection and try again.</p>
+          <button type="button" onClick={details.retry}>Retry alert details</button>
+        </div>}
+        <button type="button" onClick={onBack}>Back to alerts</button>
+      </section>
+    )
+  }
+
   if (!alert || simulateUnavailable) {
     return (
       <section>
         <p className="fa1-breadcrumb">Alerts &amp; Sources / Alerts</p>
         <h1 ref={headingRef} tabIndex={-1}>Alert no longer available</h1>
-        <p className="fa1-demo">Inception prototype — fictional data and simulated connections</p>
+        {client.mock && <p className="fa1-demo">Inception prototype — fictional data and simulated connections</p>}
         {demoControl}
         <button type="button" onClick={onBack}>Back to alerts</button>
       </section>
     )
   }
 
-  const hasRawEvent = alert.rawEvent != null
-  const json = hasRawEvent ? JSON.stringify(alert.rawEvent, null, 2) : ''
+  const hasRawEvent = raw.status === 'ready' && raw.data.rawEvent != null
+  const json = hasRawEvent ? JSON.stringify(raw.data.rawEvent, null, 2) : ''
   const timestamp = new Date(alert.occurredAt).toISOString().replace('T', ' ').replace('.000Z', ' UTC')
   const fields = [
     ['Source', alert.source],
@@ -84,27 +109,40 @@ export default function AlertDetail({ alert, onBack, onInvestigate, onOpenIncide
         <h1 id="alert-detail-heading" ref={headingRef} tabIndex={-1}>{alert.id} · {alert.eventName}</h1>
         <AlertBadge kind="severity" value={alert.severity} />
         <AlertBadge kind="status" value={alert.status} />
-        {alert.incidentId && <span className="fa1-badge fa1-badge-warning">In {alert.incidentId}</span>}
+        {incidentId && <span className="fa1-badge fa1-badge-warning">In {incidentId}</span>}
       </div>
       <p className="fa1-description">{alert.source} · <time dateTime={alert.occurredAt}>{timestamp}</time></p>
-      <p className="fa1-demo">Inception prototype — fictional data and simulated connections</p>
+      {client.mock && <p className="fa1-demo">Inception prototype — fictional data and simulated connections</p>}
       {demoControl}
 
       <div className="fa1-actions">
-        {/* FA2 supplies these callbacks from App.jsx; without them the buttons stay disabled. */}
-        <button type="button" className="fa1-primary" disabled={!onInvestigate} aria-describedby={onInvestigate ? undefined : 'alert-handoff-note'} onClick={() => onInvestigate?.(alert)}>
+        <button type="button" className="fa1-primary" disabled={!canInvestigate} aria-describedby={canInvestigate ? undefined : 'alert-handoff-note'} onClick={() => { if (canInvestigate) onInvestigate(alert) }}>
           Investigate
         </button>
-        {alert.incidentId && (
-          <button type="button" disabled={!onOpenIncident} aria-describedby={onOpenIncident ? undefined : 'alert-handoff-note'} onClick={() => onOpenIncident?.(alert.incidentId)}>
-            Open incident {alert.incidentId}
+        {incidentId && (
+          <button type="button" disabled={!canOpenIncident} aria-describedby={canOpenIncident ? undefined : 'alert-handoff-note'} onClick={() => { if (canOpenIncident) onOpenIncident(incidentId) }}>
+            Open incident {incidentId}
           </button>
         )}
         <button type="button" onClick={onBack}>Back to alerts</button>
       </div>
-      {(!onInvestigate || !onOpenIncident) && (
-        <p id="alert-handoff-note" className="fa1-muted">Investigation and incident actions are unavailable — awaiting FA2/FA3 team integration.</p>
+      {(!canInvestigate || !canOpenIncident) && (
+        <p id="alert-handoff-note" className="fa1-muted">{client.mock
+          ? 'Investigation and incident actions are unavailable — awaiting FA2/FA3 team integration.'
+          : 'Live investigations and incident reports are not connected yet. These actions are unavailable.'}</p>
       )}
+
+      <section aria-label="Associated incident" className="fa1-card">
+        <h2>Associated incident</h2>
+        {(association.status === 'loading' || association.status === 'idle') && <p role="status">Loading incident association…</p>}
+        {association.status === 'error' && <div role="alert">
+          <p>Incident association could not be loaded.</p>
+          <button type="button" onClick={association.retry}>Retry incident association</button>
+        </div>}
+        {association.data?.status === 'none' && <p>No associated incident.</p>}
+        {association.data?.status === 'ambiguous' && <p role="status">Multiple incidents are associated with this alert. No incident has been selected.</p>}
+        {association.data?.status === 'associated' && <p>Associated incident: {incidentId}</p>}
+      </section>
 
       <div className="fa1-detail-grid">
         <section className="fa1-card" aria-labelledby="normalized-alert-title">
@@ -120,7 +158,14 @@ export default function AlertDetail({ alert, onBack, onInvestigate, onOpenIncide
         </section>
         <section className="fa1-card" aria-labelledby="raw-event-title">
           <h2 id="raw-event-title">Raw event (JSON)</h2>
-          {hasRawEvent ? (
+          {(raw.status === 'loading' || raw.status === 'idle') ? (
+            <p role="status">Loading raw event…</p>
+          ) : raw.status === 'error' ? (
+            <div role="alert">
+              <p>Raw event could not be loaded.</p>
+              <button type="button" onClick={() => { setCopyMessage(''); raw.retry() }}>Retry raw event</button>
+            </div>
+          ) : hasRawEvent ? (
             <pre className="fa1-raw-json" tabIndex={0} aria-label="Raw event JSON"><code>{json}</code></pre>
           ) : (
             <p className="fa1-muted">Raw event unavailable</p>

@@ -7,6 +7,10 @@ Parameters:
     Type: String
     Default: ''
     Description: Optional container-reachable DynamoDB endpoint for local emulation; empty on AWS.
+  CorsAllowedOrigins:
+    Type: CommaDelimitedList
+    Default: 'http://localhost:5173,http://127.0.0.1:5173'
+    Description: Explicit frontend origins allowed to read the HTTP API; override for each environment.
 
 Resources:
   AlertsTable:
@@ -106,6 +110,15 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: $default
+      CorsConfiguration:
+        AllowOrigins: !Ref CorsAllowedOrigins
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+        MaxAge: 600
 
   BackendLogGroup:
     Type: AWS::Logs::LogGroup
@@ -166,6 +179,20 @@ Resources:
                   - !Sub ${EvidenceTable.Arn}/index/evidenceByInvestigation
                   - !GetAtt IncidentsTable.Arn
                   - !Sub ${IncidentsTable.Arn}/index/incidentsByInvestigation
+        - PolicyName: ReadAlertPages
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:Query
+                Resource: !Sub ${AlertsTable.Arn}/index/alertsByTime
+        - PolicyName: LookupAlertIncidentAssociation
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: dynamodb:Scan
+                Resource: !GetAtt IncidentsTable.Arn
         - PolicyName: AgentInvokeBedrock
           PolicyDocument:
             Version: '2012-10-17'
@@ -208,6 +235,30 @@ Resources:
           BEDROCK_MODEL_ID: us.amazon.nova-micro-v1:0
           BEDROCK_REGION: !Ref AWS::Region
       Events:
+        Alerts:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /alerts
+            Method: GET
+        AlertDetails:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /alerts/{alertId}
+            Method: GET
+        AlertRawEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /alerts/{alertId}/raw-event
+            Method: GET
+        AlertAssociatedIncident:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /alerts/{alertId}/associated-incident
+            Method: GET
         Health:
           Type: HttpApi
           Properties:

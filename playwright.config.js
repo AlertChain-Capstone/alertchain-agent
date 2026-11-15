@@ -3,6 +3,7 @@ import { defineConfig } from '@playwright/test'
 export default defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.js',
+  outputDir: './test-results/mock',
   fullyParallel: true,
   workers: 2,
   use: {

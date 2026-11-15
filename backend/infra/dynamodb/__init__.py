@@ -1,4 +1,4 @@
-from .alerts import DynamoDBAlertRepository
+from .alerts import DynamoDBAlertIncidentLookup, DynamoDBAlertRepository
 from .investigations import (
     DynamoDBEvidenceRepository,
     DynamoDBIncidentRepository,
@@ -8,6 +8,7 @@ from .investigations import (
 
 __all__ = [
     "DynamoDBAlertRepository",
+    "DynamoDBAlertIncidentLookup",
     "DynamoDBEvidenceRepository",
     "DynamoDBIncidentRepository",
     "DynamoDBInvestigationRepository",
