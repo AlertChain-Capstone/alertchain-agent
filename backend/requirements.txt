@@ -1,0 +1,4 @@
+# Packages the Lambda needs beyond the Python 3.12 runtime (which already provides boto3).
+# Installed into backend/vendor by scripts/vendor-backend-deps.ps1 before packaging.
+fastapi>=0.115,<1
+pydantic>=2.8,<3

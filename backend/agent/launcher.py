@@ -88,7 +88,10 @@ class LambdaSelfInvokeLauncher(InvestigationLauncher):
         if self._client is None:
             import boto3  # imported lazily so tests and local runs don't need it
 
-            self._client = boto3.client("lambda")
+            # LAMBDA_ENDPOINT_URL is only set for local Floci runs; unset or empty means real AWS.
+            self._client = boto3.client(
+                "lambda", endpoint_url=os.environ.get("LAMBDA_ENDPOINT_URL") or None
+            )
         return self._client
 
 

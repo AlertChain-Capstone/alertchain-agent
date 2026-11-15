@@ -32,3 +32,6 @@ test-results/
 .env.*
 __pycache__/
 *.pyc
+
+# Lambda dependencies installed by scripts/vendor-backend-deps.ps1
+backend/vendor/

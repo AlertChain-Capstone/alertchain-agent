@@ -1,5 +1,6 @@
 import json
 import threading
+from unittest.mock import Mock
 
 import pytest
 
@@ -160,3 +161,19 @@ def test_handle_investigation_job_crash_marks_failed():
 
     assert handle_investigation_job(_job(), runtime=rt)["status"] == "FAILED"
     assert rt.investigations.get("INV-9").status_reason == "internal error: KeyError"
+
+
+LOCAL = "http://host.docker.internal:4566"
+
+
+@pytest.mark.parametrize(("env_value", "expected"), [(LOCAL, LOCAL), ("", None)])
+def test_lambda_client_uses_local_endpoint_only_when_configured(monkeypatch, env_value, expected):
+    import boto3
+
+    factory = Mock(return_value=StubLambdaClient())
+    monkeypatch.setattr(boto3, "client", factory, raising=False)
+    monkeypatch.setenv("LAMBDA_ENDPOINT_URL", env_value)
+
+    LambdaSelfInvokeLauncher(function_name="fn").launch("INV-7")
+
+    factory.assert_called_once_with("lambda", endpoint_url=expected)

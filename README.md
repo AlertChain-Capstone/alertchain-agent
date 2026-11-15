@@ -238,7 +238,7 @@ On later sessions, start the existing stopped container instead of creating anot
 docker start alertchain-floci
 ```
 
-Wait until Floci is ready (`docker logs alertchain-floci`). Then set process-local credentials, package the Python backend into a local S3 bucket, and create or update `alertchain-local` through Floci's CloudFormation API. AWS CLI's `cloudformation package` zips `backend/` automatically; SAM CLI is not required. Keep the generated template in the temporary directory. Every AWS CLI command explicitly targets Floci in `us-east-2`; the endpoint environment settings also keep the packager's nested S3 calls local:
+Wait until Floci is ready (`docker logs alertchain-floci`). Then run `scripts\vendor-backend-deps.ps1` once (details after the packaging commands below), set process-local credentials, package the Python backend into a local S3 bucket, and create or update `alertchain-local` through Floci's CloudFormation API. AWS CLI's `cloudformation package` zips `backend/` automatically; SAM CLI is not required. Keep the generated template in the temporary directory. Every AWS CLI command explicitly targets Floci in `us-east-2`; the endpoint environment settings also keep the packager's nested S3 calls local:
 
 ```powershell
 $env:AWS_ACCESS_KEY_ID = 'test'
@@ -272,7 +272,7 @@ On first deployment, expect stack status `CREATE_COMPLETE` and this health resul
 {"status":"ok"}
 ```
 
-The first request may take longer while Docker pulls the Python Lambda image. Inside that container, `127.0.0.1` refers to the Lambda itself: the local-only `DynamoDBEndpointUrl` override uses Docker Desktop's `http://host.docker.internal:4566` to reach Floci. Leave this parameter empty on AWS. The Python runtime supplies boto3; the handler currently needs no additional packaged dependencies.
+The first request may take longer while Docker pulls the Python Lambda image. Inside that container, `127.0.0.1` refers to the Lambda itself: the local-only `DynamoDBEndpointUrl` override uses Docker Desktop's `http://host.docker.internal:4566` to reach Floci. Leave this parameter empty on AWS. The Python runtime supplies boto3. The investigations API also needs FastAPI and pydantic, which are not in the Lambda runtime: run `powershell.exe -NoProfile -File .\scripts\vendor-backend-deps.ps1` (needs Python 3.8+ and internet access to PyPI) before `cloudformation package` or `sam deploy`, and again whenever `backend/requirements.txt` changes. It installs the Lambda-compatible wheels into `backend/vendor/`, which git ignores but the package step zips. Without it, `/investigations` returns 503 `SERVICE_UNAVAILABLE` and `/health`, `/alerts` and ingestion keep working.
 
 The container and stack remain available for later sessions; do not recreate or reset them just to rerun the health check. For local updates, package again, then create and inspect a CloudFormation UPDATE change set using the generated `$packagedTemplate`, the same `DynamoDBEndpointUrl` override, and `CAPABILITY_IAM`, then execute it and wait for `stack-update-complete`. Check `dynamodb describe-table` for each of the four tables, EventBridge rules/targets and Lambda invoke permissions, and synthetic events with `events test-event-pattern`. Pattern matches and configured targets do not prove actual EventBridge delivery. Direct Lambda ingestion returns `{"alertId":"...","outcome":"inserted"}` for a new GuardDuty finding ARN or selected CloudTrail eventID, and `outcome: duplicate` on redelivery; duplicate writes preserve the original stored item.
 
