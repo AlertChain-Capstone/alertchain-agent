@@ -4,7 +4,15 @@ from __future__ import annotations
 
 import functools
 import os
+import sys
+from pathlib import Path
 from typing import Any
+
+# Third-party packages for the investigations API (FastAPI, pydantic) are installed into
+# backend/vendor by scripts/vendor-backend-deps.ps1 and shipped inside the function package.
+_VENDOR = Path(__file__).resolve().parent / "vendor"
+if _VENDOR.is_dir():
+    sys.path.insert(0, str(_VENDOR))
 
 from ingestion import CloudTrailNormalizer, FindingNormalizer
 from infra.dynamodb import DynamoDBAlertRepository
@@ -49,9 +57,39 @@ def _handle_alert_http(event: dict[str, Any]) -> dict[str, Any]:
         return error_response(503, "SERVICE_UNAVAILABLE", "Alert data is temporarily unavailable.")
 
 
+@functools.cache
+def _investigation_controller():
+    # Built lazily so /health, alert reads and ingestion never import the agent stack
+    # (FastAPI, pydantic, Bedrock). A failed build is not cached, so the next call retries.
+    from api.investigations import default_router
+    from api.investigations_http import InvestigationController
+
+    return InvestigationController(default_router())
+
+
+def _handle_investigation_http(event: dict[str, Any]) -> dict[str, Any]:
+    from api.alerts import error_response
+
+    try:
+        controller = _investigation_controller()
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception("Could not initialize investigations")
+        return error_response(
+            503, "SERVICE_UNAVAILABLE", "Investigations are temporarily unavailable."
+        )
+    return controller.handle(event)
+
+
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     if not isinstance(event, dict):
         raise ValueError("event must be an object")
+    if event.get("type") == "investigation_job":
+        # Asynchronous run started by the launcher invoking this function with itself.
+        from agent import handle_investigation_job
+
+        return handle_investigation_job(event)
     http = event.get("requestContext", {}).get("http", {})
     if http.get("method") == "GET" and event.get("rawPath") == "/health":
         return {
@@ -63,6 +101,11 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         event.get("rawPath") == "/alerts" or event.get("rawPath", "").startswith("/alerts/")
     ):
         return _handle_alert_http(event)
+    if http.get("method") and (
+        event.get("rawPath") == "/investigations"
+        or event.get("rawPath", "").startswith("/investigations/")
+    ):
+        return _handle_investigation_http(event)
     if event.get("source") == "aws.guardduty" and event.get("detail-type") == "GuardDuty Finding":
         alert = FindingNormalizer().normalize(event)
     elif (event.get("detail-type") == "AWS API Call via CloudTrail"
