@@ -1,6 +1,7 @@
 import pytest
 
 from infra.bedrock import (
+    BedrockClient,
     BedrockSettings,
     ConverseRequestBuilder,
     ModelResponseParser,
@@ -74,3 +75,23 @@ def test_request_builder_and_schema_mapper():
     assert req["inferenceConfig"] == {"maxTokens": 600, "temperature": 0.0}
     assert req["toolConfig"]["tools"][0]["toolSpec"]["inputSchema"] == {"json": Tool.input_schema}
     assert "toolConfig" not in ConverseRequestBuilder("m", 600).build("s", [], None)
+
+
+@pytest.mark.parametrize(
+    ("env_value", "expected"),
+    [("http://host.docker.internal:4566", "http://host.docker.internal:4566"), ("", None)],
+)
+def test_runtime_client_uses_local_endpoint_only_when_configured(monkeypatch, env_value, expected):
+    import sys
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    factory = Mock()
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=factory))
+    monkeypatch.setitem(
+        sys.modules, "botocore.config", SimpleNamespace(Config=lambda **kwargs: kwargs))
+    monkeypatch.setenv("BEDROCK_ENDPOINT_URL", env_value)
+
+    BedrockClient(BedrockSettings())._runtime_client()
+
+    assert factory.call_args.kwargs["endpoint_url"] == expected
