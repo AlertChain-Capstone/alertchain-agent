@@ -1,6 +1,7 @@
 import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { advance, alertById, alertOrPlaceholder, config, formatTime, initialInvestigations, isBelowThreshold, newInvestigation } from './fa2Data'
+import { alertApi } from '../shared/api'
 import { createInvestigationsApi, fromApiInvestigation, isMockMode, pendingApiInvestigation } from './api'
 import StartInvestigation, { BelowThresholdDialog } from './StartInvestigation'
 import InvestigationHeader from './InvestigationHeader'
@@ -44,6 +45,8 @@ export default function Fa2App({ ref, route, active }) {
   const [startingAlertId, setStartingAlertId] = useState(null)
   const [startError, setStartError] = useState('')
   const [loadingId, setLoadingId] = useState(null)
+  // Live mode lists the alerts stored by the backend; mock mode keeps the FA1 fixtures.
+  const [liveAlerts, setLiveAlerts] = useState({ status: 'loading', rows: [] })
 
   const current = view.name === 'investigation' ? investigations.find((inv) => inv.id === view.id) : null
   const anyRunning = investigations.some((inv) => inv.status === 'running' && inv.source !== 'api')
@@ -59,6 +62,16 @@ export default function Fa2App({ ref, route, active }) {
   }, [anyRunning])
 
   useEffect(() => () => clearTimeout(saveTimer.current), [])
+
+  useEffect(() => {
+    if (!LIVE) return undefined
+    const controller = new AbortController()
+    alertApi.listAlerts({}, 1, 100, { signal: controller.signal }).then(
+      (page) => setLiveAlerts({ status: 'ready', rows: page.alerts }),
+      (err) => { if (err.name !== 'AbortError') setLiveAlerts({ status: 'error', rows: [], message: err.message }) },
+    )
+    return () => controller.abort()
+  }, [])
 
   // Stop polling when FA2 unmounts. Forgetting the IDs lets a remount (React StrictMode
   // mounts twice in dev) start polling them again.
@@ -124,11 +137,14 @@ export default function Fa2App({ ref, route, active }) {
     setStartingAlertId(alert.id)
     try {
       const id = await api.start(alert.id)
-      setInvestigations((list) => [...list, pendingApiInvestigation(id, alert.id)])
+      // alertSnapshot keeps the alert's details for the header: live alerts are not in the fixtures.
+      setInvestigations((list) => [...list, { ...pendingApiInvestigation(id, alert.id), alertSnapshot: alert }])
       open(id, { tab: 'trace', notice: { kind: 'started' } })
       followLive(id)
     } catch (err) {
       setStartError(`Could not start an investigation for ${alert.id}: ${err.message}`)
+      // Started from an FA1 alert page, the error would otherwise appear on a hidden screen.
+      setView({ name: 'home' })
     } finally {
       setStartingAlertId(null)
     }
@@ -164,8 +180,9 @@ export default function Fa2App({ ref, route, active }) {
 
   // Handoffs from FA1: "Investigate" and "Open incident" on the Alert Detail page.
   useImperativeHandle(ref, () => ({
-    investigateAlert(alertId) {
-      const alert = alertById(alertId)
+    // FA1 passes the alert it is showing. A bare id still works for fixture alerts.
+    investigateAlert(target) {
+      const alert = typeof target === 'string' ? alertById(target) : target
       if (alert) investigate(alert)
     },
     openIncident(incidentId) {
@@ -221,7 +238,7 @@ export default function Fa2App({ ref, route, active }) {
     if (inv?.pending) resolve(id, inv.pending)
   }
 
-  const alert = current && alertOrPlaceholder(current.alertId)
+  const alert = current && (current.alertSnapshot ?? alertOrPlaceholder(current.alertId))
 
   return (
     <main className="fa1-page fa2-page" id="fa2-content" tabIndex={-1}>
@@ -244,6 +261,8 @@ export default function Fa2App({ ref, route, active }) {
           onInvestigate={investigate}
           onOpen={(id) => open(id)}
           live={LIVE}
+          alertRows={LIVE ? liveAlerts.rows : undefined}
+          alertsStatus={LIVE ? liveAlerts : null}
           startingAlertId={startingAlertId}
           startError={startError}
         />

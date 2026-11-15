@@ -8,8 +8,14 @@ export const POLL_INTERVAL_MS = 2000
 export const LIVE_MAX_STEPS = 6
 const MAX_POLL_FAILURES = 3
 
+// FA1 accepts VITE_API_URL or VITE_API_BASE_URL; FA2 must agree, or the Investigate
+// button on a live alert would start a simulated run.
+export function apiBaseUrl(env = viteEnv) {
+  return (env.VITE_API_BASE_URL?.trim() || env.VITE_API_URL?.trim() || '')
+}
+
 export function isMockMode(env = viteEnv) {
-  return env.VITE_USE_MOCK === 'true' || !env.VITE_API_BASE_URL
+  return env.VITE_USE_MOCK === 'true' || !apiBaseUrl(env)
 }
 
 export class ApiError extends Error {
@@ -33,7 +39,7 @@ function sleep(ms, signal) {
 }
 
 export function createInvestigationsApi({
-  baseUrl = viteEnv.VITE_API_BASE_URL ?? '',
+  baseUrl = apiBaseUrl(),
   fetchImpl = (...args) => globalThis.fetch(...args),
   wait = sleep,
 } = {}) {
@@ -47,7 +53,7 @@ export function createInvestigationsApi({
       signal,
     })
     if (!res.ok) {
-      const detail = await res.json().then((data) => data?.detail, () => null)
+      const detail = await res.json().then((data) => data?.error?.message ?? data?.detail, () => null)
       throw new ApiError(typeof detail === 'string' ? detail : `HTTP ${res.status}`, res.status)
     }
     return res.json()

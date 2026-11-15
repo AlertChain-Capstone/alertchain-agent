@@ -18,7 +18,7 @@ export const alertOrPlaceholder = (id) => alertById(id) ?? {
   id, title: '', eventName: '—', principal: '—', resource: '—', severity: '—', occurredAt: null, source: '',
 }
 
-const SEVERITY_RANK = { Low: 1, Medium: 2, High: 3 }
+const SEVERITY_RANK = { Low: 1, Medium: 2, High: 3, Critical: 4 }
 export const isBelowThreshold = (alert) =>
   (SEVERITY_RANK[alert.severity] ?? 0) < SEVERITY_RANK[config.severityThreshold]
 

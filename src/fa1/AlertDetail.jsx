@@ -16,7 +16,9 @@ export default function AlertDetail({ alertId, onBack, onInvestigate, onOpenInci
   const raw = useAlertRead(alertId, loadRaw, Boolean(alert))
   const association = useAlertRead(alertId, loadAssociation, Boolean(alert))
   const incidentId = association.data?.incidentId
-  const canInvestigate = client.mock && Boolean(onInvestigate)
+  // Live alerts can be investigated through the investigations API. Incident reports have
+  // no live endpoint yet, so Open incident stays mock-only.
+  const canInvestigate = Boolean(onInvestigate)
   const canOpenIncident = client.mock && Boolean(onOpenIncident)
 
   useEffect(() => {
@@ -126,10 +128,12 @@ export default function AlertDetail({ alertId, onBack, onInvestigate, onOpenInci
         )}
         <button type="button" onClick={onBack}>Back to alerts</button>
       </div>
-      {(!canInvestigate || !canOpenIncident) && (
+      {(!canInvestigate || (incidentId && !canOpenIncident)) && (
         <p id="alert-handoff-note" className="fa1-muted">{client.mock
           ? 'Investigation and incident actions are unavailable — awaiting FA2/FA3 team integration.'
-          : 'Live investigations and incident reports are not connected yet. These actions are unavailable.'}</p>
+          : canInvestigate
+            ? 'Live incident reports are not connected yet, so opening an incident is unavailable.'
+            : 'Live investigations are not connected yet. This action is unavailable.'}</p>
       )}
 
       <section aria-label="Associated incident" className="fa1-card">

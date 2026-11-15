@@ -25,7 +25,7 @@ async function installApi(page, handler = defaultReply) {
   await page.route('**/__fa1_api/**', async (route) => {
     const url = new URL(route.request().url())
     const path = url.pathname.replace('/__fa1_api', '')
-    calls.push({ path, url })
+    calls.push({ path, url, method: route.request().method(), body: route.request().postData() })
     await route.fulfill(await handler(path, url))
   })
   return calls
@@ -108,7 +108,7 @@ test('normalized details render first; optional reads fail and retry independent
   await expect(page.getByText('Raw event could not be loaded.', { exact: true })).toBeVisible()
   await expect(page.getByText('Incident association could not be loaded.', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Copy JSON', exact: true })).toBeDisabled()
-  await expect(page.getByRole('button', { name: 'Investigate', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Investigate', exact: true })).toBeEnabled()
   failRaw = false
   await page.getByRole('button', { name: 'Retry raw event' }).click()
   await expect(page.getByLabel('Raw event JSON')).toContainText('8.5')
@@ -137,9 +137,9 @@ for (const status of ['none', 'associated', 'ambiguous']) {
     await page.goto('/#/alerts/LIVE-1')
     await expect(page.getByRole('heading', { name: 'Normalized alert', exact: true })).toBeVisible()
     await expect(page.getByText('Raw event unavailable', { exact: true })).toBeVisible()
-    await expect(page.getByText('Live investigations and incident reports are not connected yet. These actions are unavailable.')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Investigate', exact: true })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Investigate', exact: true })).toBeEnabled()
     if (status === 'associated') {
+      await expect(page.getByText('Live incident reports are not connected yet, so opening an incident is unavailable.')).toBeVisible()
       await expect(page.getByText('Associated incident: INC-LIVE', { exact: true })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Open incident INC-LIVE' })).toBeDisabled()
     } else {
@@ -267,3 +267,26 @@ for (const remaining of [0, 1]) {
     expect(calls.filter((call) => call.path === '/alerts').at(-1).url.searchParams.get('page')).toBe('1')
   })
 }
+
+test('Investigate on a live alert starts a real investigation and opens its trace', async ({ page }) => {
+  const done = { investigationId: 'INV-live1', alertId: 'LIVE-1', status: 'COMPLETED', statusReason: null,
+    steps: [], evidence: [], conclusion: null }
+  const calls = await installApi(page, (path, url) => path === '/investigations' ? payload({ investigationId: 'INV-live1' }, 202)
+    : path === '/investigations/INV-live1' ? payload(done) : defaultReply(path, url))
+  await page.goto('/#/alerts/LIVE-1')
+  await expect(page.getByRole('heading', { name: 'Normalized alert', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Investigate', exact: true }).click()
+  await expect(page).toHaveURL(/#\/investigations\/INV-live1/)
+  const start = calls.find((c) => c.path === '/investigations')
+  expect(start.method).toBe('POST')
+  expect(JSON.parse(start.body)).toEqual({ alertId: 'LIVE-1' })
+  await expect.poll(() => calls.some((c) => c.path === '/investigations/INV-live1')).toBe(true)
+})
+
+test('a failed start shows the backend message and stays on the investigations screen', async ({ page }) => {
+  await installApi(page, (path, url) => path === '/investigations'
+    ? payload({ error: { code: 'NOT_FOUND', message: 'alert LIVE-1 not found' } }, 404) : defaultReply(path, url))
+  await page.goto('/#/alerts/LIVE-1')
+  await page.getByRole('button', { name: 'Investigate', exact: true }).click()
+  await expect(page.getByText('alert LIVE-1 not found')).toBeVisible()
+})
