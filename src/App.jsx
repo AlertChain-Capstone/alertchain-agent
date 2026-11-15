@@ -27,7 +27,7 @@ function Application() {
                 active={active}
                 route={route}
                 onInvestigate={(alert) => {
-                  if (fa2.current) fa2.current.investigateAlert(alert.id)
+                  if (fa2.current) fa2.current.investigateAlert(alert)
                   else navigate('/investigations')
                 }}
                 onOpenIncident={(id) => navigate(`/incidents/${encodeURIComponent(id)}`)}

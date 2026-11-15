@@ -9,7 +9,7 @@ const SCENARIOS = {
   cloudtrail: { label: 'CloudTrail query denied', help: 'The first CloudTrail query fails; the failure is recorded and the agent continues with other sources.' },
 }
 
-export default function StartInvestigation({ headingRef, investigations, scenario, onScenarioChange, onInvestigate, onOpen, live = false, startingAlertId = null, startError = '' }) {
+export default function StartInvestigation({ headingRef, investigations, scenario, onScenarioChange, onInvestigate, onOpen, live = false, startingAlertId = null, startError = '', alertRows = alerts, alertsStatus = null }) {
   const latestFor = (alertId) => [...investigations].reverse().find((inv) => inv.alertId === alertId)
 
   return (
@@ -37,7 +37,7 @@ export default function StartInvestigation({ headingRef, investigations, scenari
       <section className="fa1-card fa2-section" aria-labelledby="fa2-alerts-title">
         <div className="fa1-card-heading">
           <h2 id="fa2-alerts-title">Alerts</h2>
-          <span className="fa1-muted">From FA1 · alerts below {config.severityThreshold} severity ask for confirmation</span>
+          <span className="fa1-muted">{live ? 'From the alert store' : 'From FA1'} · alerts below {config.severityThreshold} severity ask for confirmation</span>
         </div>
         <div className="fa1-table-wrapper">
           <table className="fa1-table fa2-table">
@@ -45,7 +45,7 @@ export default function StartInvestigation({ headingRef, investigations, scenari
               <tr><th>Alert</th><th>Event</th><th>Principal</th><th>Severity</th><th>Investigation</th><th><span className="fa2-visually-hidden">Action</span></th></tr>
             </thead>
             <tbody>
-              {alerts.map((alert) => {
+              {alertRows.map((alert) => {
                 const inv = latestFor(alert.id)
                 return (
                   <tr key={alert.id}>
@@ -65,6 +65,9 @@ export default function StartInvestigation({ headingRef, investigations, scenari
             </tbody>
           </table>
         </div>
+        {alertsStatus?.status === 'loading' && <p role="status" className="fa1-muted">Loading alerts…</p>}
+        {alertsStatus?.status === 'error' && <p role="alert">Alerts could not be loaded: {alertsStatus.message}</p>}
+        {alertsStatus?.status === 'ready' && alertRows.length === 0 && <p className="fa1-muted">No alerts have been ingested yet.</p>}
       </section>
 
       <section className="fa1-card fa2-section" aria-labelledby="fa2-recent-title">

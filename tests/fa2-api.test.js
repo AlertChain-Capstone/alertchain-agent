@@ -45,6 +45,24 @@ test('mock mode when VITE_USE_MOCK=true or no API URL is configured', () => {
   assert.equal(isMockMode({ VITE_USE_MOCK: 'false', VITE_API_BASE_URL: 'https://api.example' }), false)
 })
 
+test('VITE_API_URL alone also selects live mode, matching FA1', () => {
+  assert.equal(isMockMode({ VITE_API_URL: 'https://api.example' }), false)
+  assert.equal(isMockMode({ VITE_API_URL: 'https://api.example', VITE_API_BASE_URL: '' }), false)
+  assert.equal(isMockMode({ VITE_USE_MOCK: 'true', VITE_API_URL: 'https://api.example' }), true)
+  assert.equal(isMockMode({ VITE_API_URL: '  ' }), true)
+})
+
+test('API errors show the backend message, in both the alert and FastAPI error shapes', async () => {
+  for (const body of [
+    { error: { code: 'NOT_FOUND', message: 'alert A-9 not found' } },
+    { detail: 'alert A-9 not found' },
+  ]) {
+    const { fetchImpl } = fakeFetch([{ status: 404, body }])
+    const api = createInvestigationsApi({ baseUrl: 'https://api.example', fetchImpl, wait: noWait })
+    await assert.rejects(api.start('A-9'), (err) => err.status === 404 && err.message === 'alert A-9 not found')
+  }
+})
+
 test('start POSTs the alert and returns the investigation id', async () => {
   const { fetchImpl, calls } = fakeFetch([{ status: 202, body: { investigationId: 'INV-abc' } }])
   const api = createInvestigationsApi({ baseUrl: 'https://api.example/', fetchImpl, wait: noWait })
