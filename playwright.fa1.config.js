@@ -5,6 +5,7 @@ import base from './playwright.config.js'
 export default defineConfig({
   ...base,
   testMatch: 'fa1-live.pw.js',
+  outputDir: './test-results/fa1-live',
   use: { ...base.use, baseURL: 'http://127.0.0.1:5180' },
   webServer: {
     ...base.webServer,
