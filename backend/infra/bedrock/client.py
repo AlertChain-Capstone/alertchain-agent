@@ -76,6 +76,9 @@ class BedrockClient:
             self._runtime = boto3.client(
                 "bedrock-runtime",
                 region_name=self.settings.region,
+                # BEDROCK_ENDPOINT_URL is only set for local Floci runs; unset or empty
+                # means real AWS.
+                endpoint_url=os.environ.get("BEDROCK_ENDPOINT_URL") or None,
                 config=Config(
                     retries={"max_attempts": 3, "mode": "adaptive"},
                     read_timeout=self.settings.read_timeout_seconds,
