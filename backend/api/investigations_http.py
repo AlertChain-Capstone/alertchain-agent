@@ -39,6 +39,11 @@ class InvestigationController:
         self._router = router
 
     def handle(self, event: dict[str, Any]) -> dict[str, Any]:
+        if event.get("requestContext", {}).get("http", {}).get("method") == "OPTIONS":
+            # CORS preflight for the ANY routes. API Gateway's CORS configuration adds the
+            # Access-Control-* headers; a preflight only needs a 2xx status (Floci forwards
+            # it to the function instead of answering it itself).
+            return {"statusCode": 204, "headers": {}, "body": ""}
         try:
             return self._handle(event)
         except Exception:

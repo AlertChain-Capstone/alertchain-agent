@@ -309,7 +309,9 @@ Open [the local frontend](http://alertchain-frontend-local.s3-website-us-east-2.
 
 The app already uses `HashRouter`: nested URLs must retain `/#/`, for example [incident INC-001](http://alertchain-frontend-local.s3-website-us-east-2.localhost.floci.io:4566/#/incidents/INC-001). The hash stays in the browser, so refreshing requests the site root. A bare `/incidents/INC-001` path is not an equivalent app link; an error document is not a server-side route rewrite. Changes made to mock UI state can reset on refresh.
 
-This deployment forces `VITE_USE_MOCK=true` at build time and overrides the API base URL to loopback, including when local `.env` files exist. Data behavior:
+By default the build is **live**: the script looks up the `HttpApi` of the local `alertchain-local` stack, builds with `VITE_USE_MOCK=false` and `VITE_API_BASE_URL=http://<api-id>.execute-api.localhost.floci.io:4566`, adds the website origin to the local API's CORS origins (keeping the existing ones), and checks `/health` and a CORS preflight. Deploy the backend first. **Investigate** then starts a real investigation; it uses real Amazon Bedrock only when the backend was deployed with `python -B scripts/floci-j11.py deploy --bedrock-profile <profile>`, otherwise Floci's Bedrock stub. `floci-j11.py deploy` keeps the website origin in CORS.
+
+Pass `-Mock` for the previous fixture build: it forces `VITE_USE_MOCK=true` with no API URL, including when local `.env` files exist. Data behavior of the `-Mock` build:
 
 | Screens | Data / backend behavior |
 | --- | --- |

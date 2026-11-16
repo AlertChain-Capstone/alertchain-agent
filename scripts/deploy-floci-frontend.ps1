@@ -1,11 +1,17 @@
 [CmdletBinding()]
-param()
+param(
+    # Build with fixtures and the simulated agent instead of the local Floci API.
+    [switch]$Mock
+)
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $bucket = 'alertchain-frontend-local'
-$website = "http://$bucket.s3-website-us-east-2.localhost.floci.io:4566/"
-$aws = (Get-Command aws -CommandType Application -ErrorAction Stop).Source
+$stack = 'alertchain-local'
+$websiteOrigin = "http://$bucket.s3-website-us-east-2.localhost.floci.io:4566"
+$website = "$websiteOrigin/"
+# First match on PATH: several AWS CLI installs would otherwise give an array of paths.
+$aws = (Get-Command aws -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 Get-Command npm.cmd, docker -ErrorAction Stop | Out-Null
 
 # Fixed endpoint, region and bucket: this helper cannot deploy to AWS.
@@ -18,7 +24,9 @@ $environment = @{
     AWS_ACCESS_KEY_ID = 'test'; AWS_SECRET_ACCESS_KEY = 'test'; AWS_SESSION_TOKEN = 'test'
     AWS_PROFILE = $null; AWS_DEFAULT_PROFILE = $null; AWS_EC2_METADATA_DISABLED = 'true'
     AWS_ENDPOINT_URL = 'http://127.0.0.1:4566'; AWS_ENDPOINT_URL_S3 = 'http://127.0.0.1:4566'
-    VITE_USE_MOCK = 'true'; VITE_API_BASE_URL = 'http://127.0.0.1:4566'
+    # Set below: live mode points at the stack's HTTP API. Both are forced so local .env
+    # files cannot change what this script builds.
+    VITE_USE_MOCK = 'true'; VITE_API_BASE_URL = ''; VITE_API_URL = ''
 }
 $saved = @{}
 $policyFile = $null
@@ -35,6 +43,39 @@ try {
     $labels = & docker image inspect $image --format '{{json .Config.Labels}}' | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect Floci version.' }
     Write-Host "Floci version: $($labels.'org.opencontainers.image.version')"
+
+    $apiUrl = $null
+    if (-not $Mock) {
+        $resources = Invoke-LocalAws cloudformation list-stack-resources --stack-name $stack --output json | ConvertFrom-Json
+        $apiId = ($resources.StackResourceSummaries | Where-Object LogicalResourceId -eq 'HttpApi').PhysicalResourceId
+        if (-not $apiId) { throw "No HttpApi in local stack $stack. Deploy the backend first, or pass -Mock." }
+        # Floci's local hostname for the stack-owned API (resolves to loopback).
+        $apiUrl = "http://$apiId.execute-api.localhost.floci.io:4566"
+
+        # The browser calls the API from the website origin, so CORS must allow it. Merge it
+        # into the existing local CORS settings instead of replacing them.
+        $cors = (Invoke-LocalAws apigatewayv2 get-api --api-id $apiId --output json | ConvertFrom-Json).CorsConfiguration
+        $origins = @($cors.AllowOrigins | Where-Object { $_ })
+        if ($websiteOrigin -notin $origins) {
+            $desired = @{
+                AllowOrigins = @($origins + $websiteOrigin)
+                AllowMethods = @('GET', 'POST', 'OPTIONS'); AllowHeaders = @('Content-Type'); MaxAge = 600
+            }
+            $corsFile = [IO.Path]::GetTempFileName()
+            try {
+                $desired | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $corsFile -Encoding ASCII
+                Invoke-LocalAws apigatewayv2 update-api --api-id $apiId --cors-configuration "file://$corsFile" | Out-Null
+            } finally { Remove-Item -LiteralPath $corsFile -ErrorAction SilentlyContinue }
+            Write-Host "Allowed CORS origin $websiteOrigin on local API $apiId"
+        }
+        $health = Invoke-WebRequest -UseBasicParsing -Uri "$apiUrl/health" -TimeoutSec 120
+        if ($health.StatusCode -ne 200) { throw "Local API health check failed: $apiUrl/health" }
+        [Environment]::SetEnvironmentVariable('VITE_USE_MOCK', 'false')
+        [Environment]::SetEnvironmentVariable('VITE_API_BASE_URL', $apiUrl)
+        Write-Host "Live build against $apiUrl"
+    } else {
+        Write-Host 'Mock build: fixtures and the simulated agent, no backend API calls.'
+    }
 
     if (-not (Test-Path node_modules/.bin/vite.cmd)) {
         & npm.cmd ci
@@ -82,7 +123,17 @@ try {
     }
     Write-Host "Website: $website"
     Write-Host "Nested route: ${website}#/incidents/INC-001"
-    Write-Host 'Mock build: no backend API calls. Browser navigation/console checks are still required.'
+    if ($apiUrl) {
+        $preflight = Invoke-WebRequest -UseBasicParsing -Method Options -Uri "$apiUrl/investigations" -TimeoutSec 30 -Headers @{
+            Origin = $websiteOrigin; 'Access-Control-Request-Method' = 'POST'; 'Access-Control-Request-Headers' = 'content-type'
+        }
+        if ($preflight.Headers['Access-Control-Allow-Origin'] -ne $websiteOrigin) {
+            throw "Local API CORS does not allow $websiteOrigin."
+        }
+        Write-Host "Live build: API $apiUrl (CORS preflight passed). Browser checks are still required."
+    } else {
+        Write-Host 'Mock build: no backend API calls. Browser navigation/console checks are still required.'
+    }
 } finally {
     Pop-Location
     if ($policyFile) { Remove-Item -LiteralPath $policyFile -ErrorAction SilentlyContinue }
