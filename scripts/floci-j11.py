@@ -123,7 +123,33 @@ class Floci:
                   [g["IndexName"] for g in data.get("GlobalSecondaryIndexes", [])], flush=True)
         return resources
 
-    def deploy(self, origin):
+    def bedrock_parameters(self, profile):
+        """Real AWS credentials for the Lambda's Bedrock client only (from `aws login`).
+        Without a profile, Bedrock calls go to Floci's stub, which returns placeholder text."""
+        if not profile:
+            print("No --bedrock-profile: investigations will use Floci's Bedrock stub", flush=True)
+            return [{"ParameterKey": "BedrockEndpointUrl", "ParameterValue": "http://host.docker.internal:4566"},
+                    *({"ParameterKey": key, "ParameterValue": ""} for key in
+                      ("BedrockAccessKeyId", "BedrockSecretAccessKey", "BedrockSessionToken"))]
+        env = {key: value for key, value in os.environ.items()
+               if not key.startswith(("AWS_ENDPOINT_URL", "AWS_ACCESS_KEY", "AWS_SECRET", "AWS_SESSION"))}
+        result = subprocess.run([self.executable, "configure", "export-credentials", "--profile", profile,
+                                 "--format", "process"], env=env, capture_output=True, text=True, timeout=60)
+        if result.returncode:
+            raise RuntimeError(f"Could not read AWS credentials for profile {profile!r} "
+                               f"(run `aws login --profile {profile}`): {result.stderr.strip()}")
+        creds = json.loads(result.stdout)
+        print(f"Bedrock: real AWS via profile {profile!r}; credentials expire {creds.get('Expiration')}",
+              flush=True)
+        # Explicit public endpoint: Floci keeps a variable's previous value when it is set to "".
+        return [{"ParameterKey": "BedrockEndpointUrl",
+                 "ParameterValue": f"https://bedrock-runtime.{REGION}.amazonaws.com"},
+                {"ParameterKey": "BedrockAccessKeyId", "ParameterValue": creds["AccessKeyId"]},
+                {"ParameterKey": "BedrockSecretAccessKey", "ParameterValue": creds["SecretAccessKey"]},
+                {"ParameterKey": "BedrockSessionToken", "ParameterValue": creds.get("SessionToken") or ""}]
+
+    def deploy(self, origin, bedrock_profile=None):
+        bedrock = self.bedrock_parameters(bedrock_profile)
         parsed = urlparse(origin)
         if parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "localhost") or parsed.path:
             raise ValueError("Use a loopback HTTP frontend origin, e.g. http://127.0.0.1:5173")
@@ -150,6 +176,7 @@ class Floci:
                  self.file_arg("parameters.json", [
                      {"ParameterKey": "DynamoDBEndpointUrl", "ParameterValue": "http://host.docker.internal:4566"},
                      {"ParameterKey": "CorsAllowedOrigins", "ParameterValue": origin},
+                     *bedrock,
                  ]))
         changes = self.aws("cloudformation", "describe-change-set", "--stack-name", STACK,
                            "--change-set-name", name)
@@ -372,11 +399,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("inspect", "deploy", "verify"))
     parser.add_argument("--origin", default="http://127.0.0.1:5173")
+    parser.add_argument("--bedrock-profile",
+                        help="AWS profile whose credentials the Floci Lambda uses for real Bedrock calls")
     parser.add_argument("--alert-ids", help="Comma-separated IDs from an already-passed J10 smoke run")
     args = parser.parse_args()
     local = Floci()
     if args.action == "deploy":
-        local.deploy(args.origin)
+        local.deploy(args.origin, args.bedrock_profile)
     elif args.action == "verify":
         local.verify(args.alert_ids.split(",") if args.alert_ids else [], args.origin)
     else:
