@@ -73,12 +73,27 @@ class BedrockClient:
             import boto3
             from botocore.config import Config
 
+            endpoint_url = os.environ.get("BEDROCK_ENDPOINT_URL") or None
+            credentials: dict[str, str] = {}
+            # Local Floci runs with a real Bedrock: the Lambda's own credentials are Floci's
+            # fake ones, so real AWS credentials are passed in separately for Bedrock only.
+            # The public endpoint is pinned so a Floci-wide AWS_ENDPOINT_URL can't capture it.
+            if os.environ.get("BEDROCK_AWS_ACCESS_KEY_ID"):
+                credentials = {
+                    "aws_access_key_id": os.environ["BEDROCK_AWS_ACCESS_KEY_ID"],
+                    "aws_secret_access_key": os.environ.get("BEDROCK_AWS_SECRET_ACCESS_KEY", ""),
+                    "aws_session_token": os.environ.get("BEDROCK_AWS_SESSION_TOKEN") or None,
+                }
+                endpoint_url = endpoint_url or (
+                    f"https://bedrock-runtime.{self.settings.region}.amazonaws.com"
+                )
             self._runtime = boto3.client(
                 "bedrock-runtime",
                 region_name=self.settings.region,
-                # BEDROCK_ENDPOINT_URL is only set for local Floci runs; unset or empty
-                # means real AWS.
-                endpoint_url=os.environ.get("BEDROCK_ENDPOINT_URL") or None,
+                # BEDROCK_ENDPOINT_URL is only set to use Floci's Bedrock stub; unset or
+                # empty means real AWS.
+                endpoint_url=endpoint_url,
+                **credentials,
                 config=Config(
                     retries={"max_attempts": 3, "mode": "adaptive"},
                     read_timeout=self.settings.read_timeout_seconds,

@@ -95,3 +95,26 @@ def test_runtime_client_uses_local_endpoint_only_when_configured(monkeypatch, en
     BedrockClient(BedrockSettings())._runtime_client()
 
     assert factory.call_args.kwargs["endpoint_url"] == expected
+
+
+def test_runtime_client_uses_separate_bedrock_credentials_on_public_endpoint(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    factory = Mock()
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(client=factory))
+    monkeypatch.setitem(
+        sys.modules, "botocore.config", SimpleNamespace(Config=lambda **kwargs: kwargs))
+    monkeypatch.setenv("BEDROCK_ENDPOINT_URL", "")
+    monkeypatch.setenv("BEDROCK_AWS_ACCESS_KEY_ID", "AKIDEXAMPLE")
+    monkeypatch.setenv("BEDROCK_AWS_SECRET_ACCESS_KEY", "secret")
+    monkeypatch.setenv("BEDROCK_AWS_SESSION_TOKEN", "")
+
+    BedrockClient(BedrockSettings(region="us-east-2"))._runtime_client()
+
+    kwargs = factory.call_args.kwargs
+    assert kwargs["endpoint_url"] == "https://bedrock-runtime.us-east-2.amazonaws.com"
+    assert kwargs["aws_access_key_id"] == "AKIDEXAMPLE"
+    assert kwargs["aws_secret_access_key"] == "secret"
+    assert kwargs["aws_session_token"] is None

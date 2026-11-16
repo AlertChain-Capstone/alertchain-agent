@@ -7,6 +7,25 @@ Parameters:
     Type: String
     Default: ''
     Description: Optional container-reachable DynamoDB endpoint for local emulation; empty on AWS.
+  BedrockEndpointUrl:
+    Type: String
+    Default: ''
+    Description: Optional Bedrock endpoint (e.g. Floci's stub); empty means real Amazon Bedrock.
+  BedrockAccessKeyId:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Local Floci only. Real AWS credentials used just for Bedrock calls; empty on AWS (the role is used).
+  BedrockSecretAccessKey:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Local Floci only. See BedrockAccessKeyId.
+  BedrockSessionToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Local Floci only. See BedrockAccessKeyId.
   CorsAllowedOrigins:
     Type: CommaDelimitedList
     Default: 'http://localhost:5173,http://127.0.0.1:5173'
@@ -229,9 +248,14 @@ Resources:
         Variables:
           ALERTS_TABLE_NAME: !Ref AlertsTable
           DYNAMODB_ENDPOINT_URL: !Ref DynamoDBEndpointUrl
-          # Local Floci only (empty on AWS): the self-invoke and Bedrock calls of an investigation run.
+          # Local Floci only (empty on AWS): the self-invoke call of an investigation run.
           LAMBDA_ENDPOINT_URL: !Ref DynamoDBEndpointUrl
-          BEDROCK_ENDPOINT_URL: !Ref DynamoDBEndpointUrl
+          # Empty = real Amazon Bedrock. Locally, the BEDROCK_AWS_* credentials let the Floci
+          # Lambda reach real Bedrock; on AWS they stay empty and the execution role is used.
+          BEDROCK_ENDPOINT_URL: !Ref BedrockEndpointUrl
+          BEDROCK_AWS_ACCESS_KEY_ID: !Ref BedrockAccessKeyId
+          BEDROCK_AWS_SECRET_ACCESS_KEY: !Ref BedrockSecretAccessKey
+          BEDROCK_AWS_SESSION_TOKEN: !Ref BedrockSessionToken
           INVESTIGATIONS_TABLE_NAME: !Ref InvestigationsTable
           EVIDENCE_TABLE_NAME: !Ref EvidenceTable
           INCIDENTS_TABLE_NAME: !Ref IncidentsTable
