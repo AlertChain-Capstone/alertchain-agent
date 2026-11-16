@@ -1,13 +1,13 @@
 # Running AlertChain locally with the real Bedrock agent
 
 The backend and the frontend run in **Floci** (local AWS on Docker). Only the investigation
-agent calls **real Amazon Bedrock** (Nova Micro, about $0.0001 per investigation). Everything
+agent can call **real Amazon Bedrock**. Bedrock usage is charged separately. Everything
 else, including the DynamoDB data, stays on your machine.
 
-> **Live frontend needs [#18](https://github.com/AlertChain-Capstone/alertchain-agent/pull/18).**
-> Until it is merged, `deploy-floci-frontend.ps1` on `main` still builds the mock frontend, where
-> **Investigate** runs a simulated agent. To test the full flow before then, check out
-> `fix/floci-real-bedrock` instead of `main` in step 1.
+> PR #18 is merged. For the existing preserved Floci environment, use
+> [the integration startup instructions](fa1-integration-startup.md).
+> November 16 checks verified local connectivity and stub dispatch; the user
+> skipped the charged real-model test. This is not a completed Bedrock investigation.
 
 ## What you need
 
@@ -15,13 +15,14 @@ else, including the DynamoDB data, stays on your machine.
   and **Node.js/npm**.
 - Your own sign-in to the team AWS account, set up as an AWS CLI profile named **`alertchain`**
   with Region `us-east-2`, with permission to call Bedrock (`bedrock:InvokeModel` on
-  `us.amazon.nova-micro-v1:0`). Ask whoever manages the account if you don't have this.
+  the selected regional model). The local integration uses `amazon.nova-lite-v1:0`,
+  which supports on-demand use in `us-east-2`. The `us.amazon.nova-micro-v1:0`
+  profile routes across Regions and must not be used in this managed project.
 
 ## 1. Get the code
 
 ```powershell
-git checkout main
-git pull
+git switch feature/fa1-arch_2
 npm ci
 ```
 
@@ -64,7 +65,7 @@ credentials in its terminal, and `aws login` run there opens Floci's sign-in pag
 
 ```powershell
 aws login --profile alertchain
-python -B scripts/floci-j11.py deploy --bedrock-profile alertchain
+python -B scripts/floci-j11.py deploy --origin http://127.0.0.1:5182 --bedrock-profile alertchain --bedrock-model-id amazon.nova-lite-v1:0
 powershell.exe -NoProfile -File .\scripts\deploy-floci-frontend.ps1
 ```
 

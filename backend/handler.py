@@ -11,7 +11,9 @@ from typing import Any
 # Third-party packages for the investigations API (FastAPI, pydantic) are installed into
 # backend/vendor by scripts/vendor-backend-deps.ps1 and shipped inside the function package.
 _VENDOR = Path(__file__).resolve().parent / "vendor"
-if _VENDOR.is_dir():
+# The vendor target contains Linux CPython 3.12 wheels. Host-side tests must use
+# their own environment rather than importing incompatible Lambda binaries.
+if _VENDOR.is_dir() and sys.platform == "linux" and sys.version_info[:2] == (3, 12):
     sys.path.insert(0, str(_VENDOR))
 
 from ingestion import CloudTrailNormalizer, FindingNormalizer

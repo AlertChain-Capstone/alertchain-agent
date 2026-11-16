@@ -64,14 +64,14 @@ export default function Fa2App({ ref, route, active }) {
   useEffect(() => () => clearTimeout(saveTimer.current), [])
 
   useEffect(() => {
-    if (!LIVE) return undefined
+    if (!LIVE || !active || view.name !== 'home') return undefined
     const controller = new AbortController()
     alertApi.listAlerts({}, 1, 100, { signal: controller.signal }).then(
       (page) => setLiveAlerts({ status: 'ready', rows: page.alerts }),
       (err) => { if (err.name !== 'AbortError') setLiveAlerts({ status: 'error', rows: [], message: err.message }) },
     )
     return () => controller.abort()
-  }, [])
+  }, [active, view.name])
 
   // Stop polling when FA2 unmounts. Forgetting the IDs lets a remount (React StrictMode
   // mounts twice in dev) start polling them again.
@@ -239,6 +239,9 @@ export default function Fa2App({ ref, route, active }) {
   }
 
   const alert = current && (current.alertSnapshot ?? alertOrPlaceholder(current.alertId))
+
+  // Keep state and the FA1 handoff ref mounted without rendering a hidden second screen.
+  if (!active) return null
 
   return (
     <main className="fa1-page fa2-page" id="fa2-content" tabIndex={-1}>

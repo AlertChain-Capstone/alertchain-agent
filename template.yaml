@@ -3,6 +3,10 @@ Transform: AWS::Serverless-2016-10-31
 Description: AlertChain backend starter with a health endpoint.
 
 Parameters:
+  BedrockModelId:
+    Type: String
+    Default: amazon.nova-lite-v1:0
+    Description: Model identifier; use a Region-local model for managed projects without cross-Region inference.
   DynamoDBEndpointUrl:
     Type: String
     Default: ''
@@ -259,7 +263,7 @@ Resources:
           INVESTIGATIONS_TABLE_NAME: !Ref InvestigationsTable
           EVIDENCE_TABLE_NAME: !Ref EvidenceTable
           INCIDENTS_TABLE_NAME: !Ref IncidentsTable
-          BEDROCK_MODEL_ID: us.amazon.nova-micro-v1:0
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
           BEDROCK_REGION: !Ref AWS::Region
       Events:
         Alerts:

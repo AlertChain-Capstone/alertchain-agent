@@ -149,7 +149,9 @@ class Floci:
                 {"ParameterKey": "BedrockSecretAccessKey", "ParameterValue": creds["SecretAccessKey"]},
                 {"ParameterKey": "BedrockSessionToken", "ParameterValue": creds.get("SessionToken") or ""}]
 
-    def deploy(self, origin, bedrock_profile=None):
+    def deploy(self, origin, bedrock_profile=None, bedrock_model_id="amazon.nova-lite-v1:0"):
+        if bedrock_model_id.startswith(("us.", "eu.", "apac.", "global.")):
+            raise ValueError("Use a Region-local model ID; cross-Region inference is not supported by this project")
         bedrock = self.bedrock_parameters(bedrock_profile)
         parsed = urlparse(origin)
         if parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "localhost") or parsed.path:
@@ -177,6 +179,7 @@ class Floci:
                  self.file_arg("parameters.json", [
                      {"ParameterKey": "DynamoDBEndpointUrl", "ParameterValue": "http://host.docker.internal:4566"},
                      {"ParameterKey": "CorsAllowedOrigins", "ParameterValue": f"{origin},{WEBSITE_ORIGIN}"},
+                     {"ParameterKey": "BedrockModelId", "ParameterValue": bedrock_model_id},
                      *bedrock,
                  ]))
         changes = self.aws("cloudformation", "describe-change-set", "--stack-name", STACK,
@@ -403,11 +406,13 @@ def main():
     parser.add_argument("--origin", default="http://127.0.0.1:5173")
     parser.add_argument("--bedrock-profile",
                         help="AWS profile whose credentials the Floci Lambda uses for real Bedrock calls")
+    parser.add_argument("--bedrock-model-id", default="amazon.nova-lite-v1:0",
+                        help="Region-local model identifier (no cross-Region inference)")
     parser.add_argument("--alert-ids", help="Comma-separated IDs from an already-passed J10 smoke run")
     args = parser.parse_args()
     local = Floci()
     if args.action == "deploy":
-        local.deploy(args.origin, args.bedrock_profile)
+        local.deploy(args.origin, args.bedrock_profile, args.bedrock_model_id)
     elif args.action == "verify":
         local.verify(args.alert_ids.split(",") if args.alert_ids else [], args.origin)
     else:
