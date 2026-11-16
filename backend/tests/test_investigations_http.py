@@ -109,6 +109,13 @@ def test_wrong_method_is_a_405(method, path, allow):
     assert result["headers"]["allow"] == allow
 
 
+@pytest.mark.parametrize("path", ["/investigations", "/investigations/INV-1"])
+def test_cors_preflight_is_a_204_without_side_effects(path):
+    result = make_controller().handle(event("OPTIONS", path))
+    assert result["statusCode"] == 204
+    assert result["body"] == ""
+
+
 def test_unknown_route_is_a_404():
     result = make_controller().handle(event("GET", "/investigations/INV-1/extra"))
     assert result["statusCode"] == 404

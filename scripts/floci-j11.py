@@ -26,6 +26,7 @@ import uuid
 ENDPOINT = "http://127.0.0.1:4566"
 REGION = "us-east-2"
 STACK = "alertchain-local"
+WEBSITE_ORIGIN = "http://alertchain-frontend-local.s3-website-us-east-2.localhost.floci.io:4566"
 REPO = Path(__file__).resolve().parents[1]
 TABLES = ("alertchain-alerts", "alertchain-investigations", "alertchain-evidence", "alertchain-incidents")
 HTTP = build_opener(ProxyHandler({}))
@@ -175,7 +176,7 @@ class Floci:
                  "file://" + str(packaged), "--capabilities", "CAPABILITY_IAM", "--parameters",
                  self.file_arg("parameters.json", [
                      {"ParameterKey": "DynamoDBEndpointUrl", "ParameterValue": "http://host.docker.internal:4566"},
-                     {"ParameterKey": "CorsAllowedOrigins", "ParameterValue": origin},
+                     {"ParameterKey": "CorsAllowedOrigins", "ParameterValue": f"{origin},{WEBSITE_ORIGIN}"},
                      *bedrock,
                  ]))
         changes = self.aws("cloudformation", "describe-change-set", "--stack-name", STACK,
@@ -214,7 +215,8 @@ class Floci:
 
     def ensure_cors(self, origin):
         api_id = self.resources()["HttpApi"]["PhysicalResourceId"]
-        desired = {"AllowOrigins": [origin], "AllowMethods": ["GET", "POST", "OPTIONS"],
+        # The local website (scripts/deploy-floci-frontend.ps1) calls this API too.
+        desired = {"AllowOrigins": [origin, WEBSITE_ORIGIN], "AllowMethods": ["GET", "POST", "OPTIONS"],
                    "AllowHeaders": ["Content-Type"], "MaxAge": 600}
         metadata = self.aws("apigatewayv2", "get-api", "--api-id", api_id)
         if metadata.get("CorsConfiguration") != desired:
