@@ -130,18 +130,21 @@ test('normalized details render first; optional reads fail and retry independent
 })
 
 for (const status of ['none', 'associated', 'ambiguous']) {
-  test(`incident outcome ${status} is clear without handing live IDs to fixture screens`, async ({ page }) => {
+  test(`incident outcome ${status} hands off only a confirmed association`, async ({ page }) => {
     await installApi(page, (path, url) => path.endsWith('/associated-incident')
       ? payload({ alertId: 'LIVE-1', status, incidentId: status === 'associated' ? 'INC-LIVE' : null })
-      : path.endsWith('/raw-event') ? payload({ alertId: 'LIVE-1', rawEvent: null }) : defaultReply(path, url))
+      : path === '/incidents/INC-LIVE' ? payload({
+        id: 'INC-LIVE', title: 'Reported incident', severity: 'High', status: 'Open', summary: null, evidenceIds: [], evidence: [],
+      }) : path.endsWith('/raw-event') ? payload({ alertId: 'LIVE-1', rawEvent: null }) : defaultReply(path, url))
     await page.goto('/#/alerts/LIVE-1')
     await expect(page.getByRole('heading', { name: 'Normalized alert', exact: true })).toBeVisible()
     await expect(page.getByText('Raw event unavailable', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Investigate', exact: true })).toBeEnabled()
     if (status === 'associated') {
-      await expect(page.getByText('Live incident reports are not connected yet, so opening an incident is unavailable.')).toBeVisible()
       await expect(page.getByText('Associated incident: INC-LIVE', { exact: true })).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Open incident INC-LIVE' })).toBeDisabled()
+      await page.getByRole('button', { name: 'Open incident INC-LIVE' }).click()
+      await expect(page.getByRole('heading', { name: 'Reported incident' })).toBeVisible()
+      await expect(page.getByText('No summary was recorded.')).toBeVisible()
     } else {
       await expect(page.getByText(status === 'none' ? 'No associated incident.'
         : 'Multiple incidents are associated with this alert. No incident has been selected.', { exact: true })).toBeVisible()

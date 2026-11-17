@@ -29,7 +29,7 @@ export default function Fa2App({ ref, route, active }) {
     const value = typeof next === 'function' ? next(view) : next
     const inv = investigations.find((item) => item.id === value.id)
     const path = value.name === 'home' ? '/investigations'
-      : value.tab === 'chain' && inv?.incidentId ? `/incidents/${inv.incidentId}/chain`
+      : !LIVE && value.tab === 'chain' && inv?.incidentId ? `/incidents/${inv.incidentId}/chain`
       : `/investigations/${value.id}`
     navigate(path, { state: value })
   }

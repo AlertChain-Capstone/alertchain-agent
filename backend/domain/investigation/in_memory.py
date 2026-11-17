@@ -71,6 +71,12 @@ class InMemoryIncidentRepository(IncidentRepository):
     def __init__(self) -> None:
         self.incidents: list[dict[str, Any]] = []
 
+    def get(self, incident_id: str) -> dict[str, Any] | None:
+        return next((copy.deepcopy(i) for i in self.incidents if i["id"] == incident_id), None)
+
+    def list_all(self) -> list[dict[str, Any]]:
+        return copy.deepcopy(self.incidents)
+
     def find_by_investigation(self, investigation_id: str) -> dict[str, Any] | None:
         return next(
             (copy.deepcopy(i) for i in self.incidents if i["investigation_id"] == investigation_id),

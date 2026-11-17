@@ -292,6 +292,18 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /health
             Method: GET
+        IncidentList:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /incidents
+            Method: GET
+        IncidentDetail:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /incidents/{incidentId}
+            Method: GET
         Investigations:
           Type: HttpApi
           Properties:

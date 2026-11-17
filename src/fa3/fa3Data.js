@@ -13,6 +13,12 @@ export function formatDate(iso) {
   return iso ? new Date(iso).toISOString().replace('T', ' ').replace('.000Z', ' UTC') : 'Not recorded'
 }
 
+export function incidentTime(incident) {
+  if (incident.occurredAt) return formatDate(incident.occurredAt)
+  if (incident.createdAt) return `Opened ${formatDate(incident.createdAt)}`
+  return 'Not recorded'
+}
+
 export function resolveEvidence(incident, id) {
   return incident.evidence.find((item) => item.id === id && item.incidentId === incident.id) ?? null
 }

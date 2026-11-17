@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import Iterator
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -199,6 +200,22 @@ class DynamoDBIncidentRepository(IncidentRepository):
     def __init__(self, table: Any, index_name: str = "incidentsByInvestigation") -> None:
         self._table = table
         self._index = index_name
+
+    def get(self, incident_id: str) -> dict[str, Any] | None:
+        item = self._table.get_item(Key={"incident_id": incident_id}).get("Item")
+        return self._to_incident(item) if item else None
+
+    def list_all(self) -> Iterator[dict[str, Any]]:
+        # The investigation GSI cannot enumerate incidents across investigations.
+        kwargs = {}
+        while True:
+            page = self._table.scan(**kwargs)
+            for item in page.get("Items", []):
+                yield self._to_incident(item)
+            key = page.get("LastEvaluatedKey")
+            if not key:
+                return
+            kwargs["ExclusiveStartKey"] = key
 
     def find_by_investigation(self, investigation_id: str) -> dict[str, Any] | None:
         page = self._table.query(

@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { areas } from './areas.js'
+import { isMockMode } from './api.js'
 import './prototype.css'
 import './shell.css'
 
@@ -25,7 +26,7 @@ export default function AppLayout({ activeArea, children }) {
               </Link>
             ))}
           </nav>
-          <p className="app-prototype"><span aria-hidden="true">●</span> Inception prototype<br /><small>Fictional data · AWS sandbox</small></p>
+          {isMockMode() && <p className="app-prototype"><span aria-hidden="true">●</span> Inception prototype<br /><small>Fictional data · AWS sandbox</small></p>}
         </aside>
         {children}
       </div>

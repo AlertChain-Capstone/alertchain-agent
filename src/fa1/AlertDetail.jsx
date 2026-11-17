@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import AlertBadge from './AlertBadge'
 import { alertApi } from '../shared/api'
-import useAlertRead from './useAlertRead'
+import useApiRead from '../shared/useApiRead'
 
 export default function AlertDetail({ alertId, onBack, onInvestigate, onOpenIncident, client = alertApi }) {
   const headingRef = useRef(null)
@@ -9,17 +9,15 @@ export default function AlertDetail({ alertId, onBack, onInvestigate, onOpenInci
   const [copying, setCopying] = useState(false)
   const [simulateUnavailable, setSimulateUnavailable] = useState(false)
   const loadDetails = useCallback((signal) => client.getAlertDetails(alertId, { signal }), [client, alertId])
-  const details = useAlertRead(alertId, loadDetails)
+  const details = useApiRead(alertId, loadDetails)
   const alert = details.data
   const loadRaw = useCallback((signal) => client.getRawEvent(alertId, { signal }), [client, alertId])
   const loadAssociation = useCallback((signal) => client.getAssociatedIncidentId(alertId, { signal }), [client, alertId])
-  const raw = useAlertRead(alertId, loadRaw, Boolean(alert))
-  const association = useAlertRead(alertId, loadAssociation, Boolean(alert))
+  const raw = useApiRead(alertId, loadRaw, Boolean(alert))
+  const association = useApiRead(alertId, loadAssociation, Boolean(alert))
   const incidentId = association.data?.incidentId
-  // Live alerts can be investigated through the investigations API. Incident reports have
-  // no live endpoint yet, so Open incident stays mock-only.
   const canInvestigate = Boolean(onInvestigate)
-  const canOpenIncident = client.mock && Boolean(onOpenIncident)
+  const canOpenIncident = Boolean(onOpenIncident)
 
   useEffect(() => {
     headingRef.current?.focus()
@@ -129,11 +127,7 @@ export default function AlertDetail({ alertId, onBack, onInvestigate, onOpenInci
         <button type="button" onClick={onBack}>Back to alerts</button>
       </div>
       {(!canInvestigate || (incidentId && !canOpenIncident)) && (
-        <p id="alert-handoff-note" className="fa1-muted">{client.mock
-          ? 'Investigation and incident actions are unavailable — awaiting FA2/FA3 team integration.'
-          : canInvestigate
-            ? 'Live incident reports are not connected yet, so opening an incident is unavailable.'
-            : 'Live investigations are not connected yet. This action is unavailable.'}</p>
+        <p id="alert-handoff-note" className="fa1-muted">The linked workspace is unavailable.</p>
       )}
 
       <section aria-label="Associated incident" className="fa1-card">
