@@ -52,6 +52,14 @@ def _incident_query_service():
     )
 
 
+@functools.cache
+def _ask_service():
+    from infra.bedrock import BedrockClient
+    from services.ask import AskService
+
+    return AskService(_incident_query_service(), BedrockClient())
+
+
 def _handle_alert_http(event: dict[str, Any]) -> dict[str, Any]:
     from api.alerts import AlertController, error_response
     from services.alerts import AlertService
@@ -115,7 +123,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     ):
         from api.incidents import IncidentsRouter
 
-        return IncidentsRouter(_incident_query_service).handle(event)
+        return IncidentsRouter(_incident_query_service, _ask_service).handle(event)
     if http.get("method") and (
         event.get("rawPath") == "/investigations"
         or event.get("rawPath", "").startswith("/investigations/")

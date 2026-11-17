@@ -5,6 +5,7 @@ import Dashboard from './Dashboard.jsx'
 import IncidentList from './IncidentList.jsx'
 import IncidentReport from './IncidentReport.jsx'
 import LiveIncidentReport from './LiveIncidentReport.jsx'
+import LiveAsk from './LiveAsk.jsx'
 import { incidentsApi } from './api.js'
 import AskAgent from './AskAgent.jsx'
 import { Notice, Unavailable } from './Ui.jsx'
@@ -24,7 +25,9 @@ function IncidentScreen({ id, ask, session, setSession }) {
       <Link to="/incidents">Back to incidents</Link>
     </Notice>
   }
-  if (!incidentsApi.mock) return <LiveIncidentReport incident={read.data} ask={ask} />
+  if (!incidentsApi.mock) return ask
+    ? <LiveAsk incident={read.data} session={session} setSession={setSession} />
+    : <LiveIncidentReport incident={read.data} />
   if (ask) return <AskAgent incident={read.data} session={session} setSession={setSession} />
   return <IncidentReport incident={read.data} />
 }

@@ -304,6 +304,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /incidents/{incidentId}
             Method: GET
+        IncidentQuestions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /incidents/{incidentId}/questions
+            Method: POST
         Investigations:
           Type: HttpApi
           Properties:

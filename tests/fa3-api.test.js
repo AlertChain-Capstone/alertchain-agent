@@ -54,3 +54,36 @@ test('explicit mock mode reads the portfolio and incident without an API call', 
   assert.equal((await api.get('INC-001')).evidence[0].id, 'E1')
   await assert.rejects(api.get('missing'), { status: 404 })
 })
+
+test('asks about one incident and resolves duplicate citations to its available evidence', async () => {
+  const signal = new AbortController().signal
+  const answer = { kind: 'answer', text: 'Two related events were recorded.', citations: ['found', 'found'] }
+  const api = createIncidentsApi({ env, fetchImpl: async (url, init) => {
+    assert.equal(url, 'https://example.test/stage/incidents/INC%3A9/questions')
+    assert.equal(init.method, 'POST')
+    assert.equal(init.headers['Content-Type'], 'application/json')
+    assert.deepEqual(JSON.parse(init.body), { question: 'How many events?' })
+    assert.equal(init.signal, signal)
+    return ok(answer)
+  } })
+  assert.deepEqual(await api.ask(report, '  How many events?  ', { signal }), { ...answer, citations: ['found'] })
+})
+
+test('unanswerable questions return an explicit limitation with no citations', async () => {
+  const limitation = { kind: 'limitation', text: 'The recorded evidence cannot establish that.', citations: [] }
+  const api = createIncidentsApi({ env, fetchImpl: async () => ok(limitation) })
+  assert.deepEqual(await api.ask(report, 'What happened elsewhere?'), limitation)
+})
+
+test('unverified answer and limitation payloads are withheld', async () => {
+  const unsupported = { kind: 'answer', text: 'Unsupported conclusion', citations: ['found'] }
+  for (const invalid of [
+    null, { ...unsupported, kind: 'unknown' }, { ...unsupported, text: ' ' },
+    { ...unsupported, citations: null }, { ...unsupported, citations: [] },
+    { ...unsupported, citations: ['found', 'another-incident'] }, { ...unsupported, citations: ['missing'] },
+    { ...unsupported, kind: 'limitation' },
+  ]) {
+    const api = createIncidentsApi({ env, fetchImpl: async () => ok(invalid) })
+    await assert.rejects(api.ask(report, 'What was recorded?'), /invalid response/)
+  }
+})

@@ -92,6 +92,9 @@
 .fa3-suggestions p { color: #667085; font-size: 11px; }
 .fa3-suggestions button { display: block; margin: 8px 0; text-align: left; font-weight: 400; }
 .fa3-response { margin-top: 20px; }
+.fa3-live-ask { max-width: 800px; }
+.fa3-live-ask .fa3-answer p { white-space: pre-line; overflow-wrap: anywhere; }
+.fa3-live-ask details { margin: 12px 0; overflow-wrap: anywhere; }
 .fa3-question-bubble { background: #edf3fa; padding: 14px 18px; border-radius: 8px; overflow-wrap: anywhere; }
 .fa3-answer { padding: 18px 0 0; }
 .fa3-answer-limitation { color: #865510; background: #fffaeb; border-left: 3px solid #e7be71; padding: 12px; }

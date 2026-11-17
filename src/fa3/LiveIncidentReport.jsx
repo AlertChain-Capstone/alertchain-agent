@@ -1,15 +1,10 @@
 import { Link } from 'react-router'
 import { incidentTime } from './fa3Data.js'
-import { Badge, Notice, PageHeading } from './Ui.jsx'
+import { Badge, PageHeading } from './Ui.jsx'
+import StoredEvidence from './StoredEvidence.jsx'
 
-export default function LiveIncidentReport({ incident, ask }) {
+export default function LiveIncidentReport({ incident }) {
   const id = incident.id
-  if (ask) return <>
-    <PageHeading title="Ask the Agent" eyebrow={`INCIDENT QUESTION · ${id}`}><p>{incident.title}</p></PageHeading>
-    <Notice title="Live incident questions are unavailable">
-      <Link to={`/incidents/${encodeURIComponent(id)}`}>Return to report</Link>
-    </Notice>
-  </>
   const evidenceById = new Map(incident.evidence.map((item) => [item.id, item]))
   return <>
     <PageHeading title={incident.title} eyebrow={`INCIDENT REPORT · ${id}`}>
@@ -17,6 +12,7 @@ export default function LiveIncidentReport({ incident, ask }) {
     </PageHeading>
     <div className="fa3-actions">
       <Link to="/incidents">← Back to incidents</Link>
+      <Link className="fa3-button fa3-primary" to={`/incidents/${encodeURIComponent(id)}/ask`}>Ask the Agent</Link>
       {incident.investigationId && <Link className="fa3-button" to={`/investigations/${encodeURIComponent(incident.investigationId)}`}>View investigation {incident.investigationId}</Link>}
       {incident.alertId && <Link className="fa3-button" to={`/alerts/${encodeURIComponent(incident.alertId)}`}>View alert {incident.alertId}</Link>}
     </div>
@@ -29,11 +25,7 @@ export default function LiveIncidentReport({ incident, ask }) {
         if (!item) return <p key={citation}>{citation} · Evidence unavailable</p>
         return <article key={citation}>
           <h3>{item.id} · {item.source}</h3>
-          <p>{item.summary}</p>
-          {item.raw != null && <details>
-            <summary>Inspect stored evidence {item.id}</summary>
-            <pre tabIndex={0} aria-label={`Stored evidence ${item.id}`}>{JSON.stringify(item.raw, null, 2)}</pre>
-          </details>}
+          <StoredEvidence item={item} />
         </article>
       })}
     </section>

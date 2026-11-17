@@ -55,7 +55,22 @@ export function createIncidentsApi({ env, fetchImpl } = {}) {
     return body
   }
 
-  return { mock, list, get }
+  async function ask(incident, question, { signal } = {}) {
+    const result = await requestJson(`${base}/incidents/${encodeURIComponent(incident.id)}/questions`, {
+      method: 'POST', body: { question: question.trim() }, signal, fetchImpl,
+    })
+    if (typeof result?.text !== 'string' || !result.text.trim() || !Array.isArray(result.citations)) {
+      throw invalidResponse()
+    }
+    if (result.kind === 'limitation' && result.citations.length === 0) return result
+    const available = new Set(incident.evidence.map((item) => item.id))
+    if (result.kind !== 'answer' || !result.citations.length || result.citations.some((id) => !available.has(id))) {
+      throw invalidResponse()
+    }
+    return { ...result, citations: [...new Set(result.citations)] }
+  }
+
+  return { mock, list, get, ask }
 }
 
 export const incidentsApi = createIncidentsApi()
