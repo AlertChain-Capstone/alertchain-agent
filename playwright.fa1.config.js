@@ -1,10 +1,10 @@
 import { defineConfig } from '@playwright/test'
 import base from './playwright.config.js'
 
-// A separate dev server exercises FA1 live mode with intercepted HTTP contracts, no AWS.
+// Run the live screens against intercepted HTTP responses.
 export default defineConfig({
   ...base,
-  testMatch: 'fa1-live.pw.js',
+  testMatch: ['fa1-live.pw.js', 'fa3-live.pw.js'],
   outputDir: './test-results/fa1-live',
   use: { ...base.use, baseURL: 'http://127.0.0.1:5180' },
   webServer: {

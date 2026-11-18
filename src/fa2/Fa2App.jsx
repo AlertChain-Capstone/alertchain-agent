@@ -29,7 +29,7 @@ export default function Fa2App({ ref, route, active }) {
     const value = typeof next === 'function' ? next(view) : next
     const inv = investigations.find((item) => item.id === value.id)
     const path = value.name === 'home' ? '/investigations'
-      : value.tab === 'chain' && inv?.incidentId ? `/incidents/${inv.incidentId}/chain`
+      : !LIVE && value.tab === 'chain' && inv?.incidentId ? `/incidents/${inv.incidentId}/chain`
       : `/investigations/${value.id}`
     navigate(path, { state: value })
   }
@@ -238,10 +238,9 @@ export default function Fa2App({ ref, route, active }) {
     if (inv?.pending) resolve(id, inv.pending)
   }
 
-  const alert = current && (current.alertSnapshot ?? alertOrPlaceholder(current.alertId))
-
   // Keep state and the FA1 handoff ref mounted without rendering a hidden second screen.
   if (!active) return null
+  const alert = current && (current.alertSnapshot ?? alertOrPlaceholder(current.alertId))
 
   return (
     <main className="fa1-page fa2-page" id="fa2-content" tabIndex={-1}>

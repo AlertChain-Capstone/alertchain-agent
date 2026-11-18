@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import parse_qsl, unquote
+from urllib.parse import unquote
+
+from api.http import RESOURCE_ID, InvalidQuery, error_response, positive_int, query_values, response
 
 from domain.alerts import AlertFilter, AlertNotFoundError, AlertStatus, Severity
 from services.alerts import AlertService, alert_fields
 
 logger = logging.getLogger(__name__)
-ALERT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
 SOURCES = {"Amazon GuardDuty", "AWS CloudTrail"}
 QUERY_KEYS = {"search", "severity", "source", "status", "from", "to", "page", "pageSize"}
 # Require a full timestamp, not a date-only or offset-free datetime.
@@ -21,34 +21,6 @@ TIMESTAMP = re.compile(
     r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?"
     r"(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)"
 )
-
-
-class InvalidQuery(ValueError):
-    pass
-
-
-def response(status: int, body: Any) -> dict[str, Any]:
-    return {"statusCode": status, "headers": {"content-type": "application/json"},
-            "body": json.dumps(body, allow_nan=False)}
-
-
-def error_response(status: int, code: str, message: str) -> dict[str, Any]:
-    return response(status, {"error": {"code": code, "message": message}})
-
-
-def _query(event: dict[str, Any]) -> dict[str, str]:
-    # v2 queryStringParameters folds duplicate values into a comma-separated string.
-    # Parse rawQueryString instead, so duplicates cannot silently change semantics.
-    if "rawQueryString" in event:
-        pairs = parse_qsl(event["rawQueryString"], keep_blank_values=True)
-    else:
-        pairs = list((event.get("queryStringParameters") or {}).items())
-    values = {}
-    for key, value in pairs:
-        if key not in QUERY_KEYS or key in values:
-            raise InvalidQuery("Unknown or repeated query parameter.")
-        values[key] = value.strip()
-    return values
 
 
 def _time(value: str | None) -> datetime | None:
@@ -62,20 +34,8 @@ def _time(value: str | None) -> datetime | None:
         raise InvalidQuery("Invalid timestamp.") from exc
 
 
-def _positive_int(value: str, name: str, maximum: int | None = None) -> int:
-    if not re.fullmatch(r"[0-9]+", value):
-        raise InvalidQuery(f"{name} must be a positive integer.")
-    try:
-        result = int(value)
-    except ValueError as exc:
-        raise InvalidQuery(f"Invalid {name}.") from exc
-    if result < 1 or (maximum is not None and result > maximum):
-        raise InvalidQuery(f"Invalid {name}.")
-    return result
-
-
 def _list_args(event: dict[str, Any]) -> tuple[AlertFilter, int, int]:
-    values = _query(event)
+    values = query_values(event, QUERY_KEYS)
     try:
         severity = Severity(values["severity"]) if values.get("severity") else None
         status = AlertStatus(values["status"]) if values.get("status") else None
@@ -89,8 +49,8 @@ def _list_args(event: dict[str, Any]) -> tuple[AlertFilter, int, int]:
         raise InvalidQuery("from must not be after to.")
     return (
         AlertFilter(values.get("search", ""), severity, source, status, start, end),
-        _positive_int(values.get("page", "1"), "page"),
-        _positive_int(values.get("pageSize", "6"), "pageSize", 100),
+        positive_int(values.get("page", "1"), "page"),
+        positive_int(values.get("pageSize", "6"), "pageSize", 100),
     )
 
 
@@ -126,7 +86,7 @@ class AlertController:
         )):
             return error_response(404, "NOT_FOUND", "Route not found.")
         alert_id = unquote(parts[2])
-        if not ALERT_ID.fullmatch(alert_id):
+        if not RESOURCE_ID.fullmatch(alert_id):
             return error_response(400, "INVALID_ALERT_ID", "Invalid alert ID.")
         if event.get("rawQueryString") or event.get("queryStringParameters"):
             raise InvalidQuery("This endpoint does not accept query parameters.")

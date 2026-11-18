@@ -1,6 +1,9 @@
 // FA2 client for the investigations API (backend/api/investigations.py).
 // Mock mode (the inception prototype's simulated agent) is used when VITE_USE_MOCK=true,
 // or when no VITE_API_BASE_URL is configured, so local dev and e2e tests keep working.
+import { requestJson } from '../shared/http.js'
+export { ApiError } from '../shared/http.js'
+
 const viteEnv = import.meta.env ?? {}
 
 export const POLL_INTERVAL_MS = 2000
@@ -16,14 +19,6 @@ export function apiBaseUrl(env = viteEnv) {
 
 export function isMockMode(env = viteEnv) {
   return env.VITE_USE_MOCK === 'true' || !apiBaseUrl(env)
-}
-
-export class ApiError extends Error {
-  constructor(message, status) {
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-  }
 }
 
 function abortError() {
@@ -45,18 +40,8 @@ export function createInvestigationsApi({
 } = {}) {
   const root = baseUrl.replace(/\/+$/, '')
 
-  async function request(path, { method = 'GET', body, signal } = {}) {
-    const res = await fetchImpl(`${root}${path}`, {
-      method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-      signal,
-    })
-    if (!res.ok) {
-      const detail = await res.json().then((data) => data?.error?.message ?? data?.detail, () => null)
-      throw new ApiError(typeof detail === 'string' ? detail : `HTTP ${res.status}`, res.status)
-    }
-    return res.json()
+  function request(path, options) {
+    return requestJson(`${root}${path}`, { ...options, fetchImpl })
   }
 
   async function start(alertId) {
@@ -132,9 +117,12 @@ function stepToTrace(step, apiInv) {
 export function fromApiInvestigation(apiInv, previous = {}) {
   const trace = apiInv.steps.map((step) => stepToTrace(step, apiInv))
   const finished = apiInv.status !== 'RUNNING'
+  const created = apiInv.steps.find((step) =>
+    step.toolName === 'create_incident' && step.toolOutput?.data?.incident?.investigation_id === apiInv.investigationId)
   return {
-    ticks: {}, skipReasons: {}, nextSteps: [], incidentId: null,
+    ticks: {}, skipReasons: {}, nextSteps: [],
     ...previous,
+    incidentId: created?.toolOutput.data.incident.id ?? null,
     source: 'api',
     maxSteps: LIVE_MAX_STEPS,
     id: apiInv.investigationId,

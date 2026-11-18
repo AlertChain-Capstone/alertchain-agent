@@ -1,13 +1,15 @@
 # Running AlertChain locally with the real Bedrock agent
 
-The backend and the frontend run in **Floci** (local AWS on Docker). Only the investigation
-agent can call **real Amazon Bedrock**. Bedrock usage is charged separately. Everything
-else, including the DynamoDB data, stays on your machine.
+The backend and frontend run in **Floci** (local AWS on Docker). Investigation runs
+and evidence-grounded incident questions can call **real Amazon Bedrock** when
+configured with the user's AWS profile. These model calls incur separate usage
+charges; DynamoDB and the application infrastructure remain local.
 
 > PR #18 is merged. For the existing preserved Floci environment, use
 > [the integration startup instructions](fa1-integration-startup.md).
-> November 16 checks verified local connectivity and stub dispatch; the user
-> skipped the charged real-model test. This is not a completed Bedrock investigation.
+> The November 16 integration report describes the earlier deployment, before the
+> FA3 merge. The combined FA1/FA3 source adds live incident reports and questions;
+> merging and testing that source does not update an already-deployed Floci backend.
 
 ## What you need
 
@@ -78,6 +80,8 @@ Open <http://alertchain-frontend-local.s3-website-us-east-2.localhost.floci.io:4
 alert and click **Investigate**. After a few seconds you should see real reasoning steps
 (`get_related_events`, `check_actor_baseline`, ...) and a completed verdict with a severity and
 a confidence.
+
+When the investigation opens an incident, follow **Open incident report**, choose **Ask the Agent**, and ask about one of the recorded events. Open a citation to inspect the original evidence.
 
 ## Troubleshooting
 

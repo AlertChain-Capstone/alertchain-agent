@@ -7,6 +7,7 @@ three are read/write ports the agent tools depend on.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from typing import Any
 
 from .models import Evidence, Investigation
@@ -49,6 +50,12 @@ class ActorBaselineRepository(ABC):
 
 
 class IncidentRepository(ABC):
+    @abstractmethod
+    def get(self, incident_id: str) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    def list_all(self) -> Iterable[dict[str, Any]]: ...
+
     @abstractmethod
     def find_by_investigation(self, investigation_id: str) -> dict[str, Any] | None: ...
 

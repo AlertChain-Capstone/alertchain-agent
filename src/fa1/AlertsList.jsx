@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo } from 'react'
 import AlertBadge from './AlertBadge'
 import { alertApi, buildAlertFilter, DEMO_REFERENCE_TIME } from '../shared/api'
-import useAlertRead from './useAlertRead'
+import useApiRead from '../shared/useApiRead'
 
 const PAGE_SIZE = 6
 const timeRanges = [
@@ -24,7 +24,7 @@ export default function AlertsList({ filters, setFilters, page, setPage, onOpenA
   const filter = useMemo(() => buildAlertFilter(filters, filters.referenceTime), [filters])
   const load = useCallback((signal) => client.listAlerts(filter, page, PAGE_SIZE, { signal, demoScenario }),
     [client, filter, page, demoScenario])
-  const read = useAlertRead(JSON.stringify([filter, page, demoScenario]), load)
+  const read = useApiRead(JSON.stringify([filter, page, demoScenario]), load)
   useEffect(() => {
     if (read.status === 'ready') onReady?.()
   }, [read.status, onReady])

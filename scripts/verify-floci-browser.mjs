@@ -117,7 +117,7 @@ try {
         await page.reload()
         if (created.length === 1) {
           await page.getByText(`Associated incident: ${id}`, { exact: true }).waitFor()
-          assert.equal(await page.getByRole('button', { name: `Open incident ${id}`, exact: true }).isDisabled(), true)
+          assert.equal(await page.getByRole('button', { name: `Open incident ${id}`, exact: true }).isEnabled(), true)
           associationStates.push('associated')
         } else {
           await page.getByText('Multiple incidents are associated with this alert. No incident has been selected.', { exact: true }).waitFor()

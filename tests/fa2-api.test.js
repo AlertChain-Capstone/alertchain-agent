@@ -171,3 +171,14 @@ test('all four API statuses map to screen states', () => {
   assert.equal(review.statusReason, 'step limit of 6 reached')
   assert.equal(pendingApiInvestigation('INV-new', 'A-1', '2026-11-01T10:00:00Z').status, 'running')
 })
+
+test('the investigation links to the incident saved by its own successful tool call', () => {
+  const recorded = (owner) => ({
+    toolName: 'create_incident', toolInput: {},
+    toolOutput: { data: { incident: { id: 'INC-529A', investigation_id: owner } } },
+  })
+  const result = (steps) => fromApiInvestigation({ ...RUNNING, steps }).incidentId
+  assert.equal(result([recorded('INV-other')]), null)
+  assert.equal(result([{ toolName: 'create_incident', toolOutput: { error: 'missing evidence' } }]), null)
+  assert.equal(result([recorded(RUNNING.investigationId)]), 'INC-529A')
+})
