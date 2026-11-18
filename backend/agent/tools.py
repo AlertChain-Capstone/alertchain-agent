@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, ClassVar
 
 from domain.investigation import (
@@ -155,6 +156,7 @@ class CreateIncidentTool(AgentTool):
                 "investigation_id": context.investigation_id,
                 "alert_id": context.alert_id,
                 "title": tool_input["title"],
+                "created_at": datetime.now(UTC).isoformat(),
                 "severity": tool_input["severity"],
                 "summary": tool_input["summary"],
                 "evidence_ids": cited,

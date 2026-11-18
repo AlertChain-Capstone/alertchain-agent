@@ -18,29 +18,46 @@ from ingestion import CloudTrailNormalizer, FindingNormalizer
 from infra.dynamodb import DynamoDBAlertRepository
 
 
-@functools.cache
-def _alert_repository() -> DynamoDBAlertRepository:
+def _dynamodb_resource():
     import boto3
 
-    dynamodb = boto3.resource(
+    return boto3.resource(
         "dynamodb",
         region_name=os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION"),
         endpoint_url=os.environ.get("DYNAMODB_ENDPOINT_URL") or None,
     )
-    return DynamoDBAlertRepository(dynamodb.Table(os.environ["ALERTS_TABLE_NAME"]))
+
+
+@functools.cache
+def _alert_repository() -> DynamoDBAlertRepository:
+    return DynamoDBAlertRepository(_dynamodb_resource().Table(os.environ["ALERTS_TABLE_NAME"]))
 
 
 @functools.cache
 def _incident_lookup():
-    import boto3
     from infra.dynamodb.alerts import DynamoDBAlertIncidentLookup
 
-    dynamodb = boto3.resource(
-        "dynamodb",
-        region_name=os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION"),
-        endpoint_url=os.environ.get("DYNAMODB_ENDPOINT_URL") or None,
+    return DynamoDBAlertIncidentLookup(_dynamodb_resource().Table(os.environ["INCIDENTS_TABLE_NAME"]))
+
+
+@functools.cache
+def _incident_query_service():
+    from infra.dynamodb import DynamoDBEvidenceRepository, DynamoDBIncidentRepository
+    from services.incidents import IncidentQueryService
+
+    dynamodb = _dynamodb_resource()
+    return IncidentQueryService(
+        DynamoDBIncidentRepository(dynamodb.Table(os.environ["INCIDENTS_TABLE_NAME"])),
+        DynamoDBEvidenceRepository(dynamodb.Table(os.environ["EVIDENCE_TABLE_NAME"])),
     )
-    return DynamoDBAlertIncidentLookup(dynamodb.Table(os.environ["INCIDENTS_TABLE_NAME"]))
+
+
+@functools.cache
+def _ask_service():
+    from infra.bedrock import BedrockClient
+    from services.ask import AskService
+
+    return AskService(_incident_query_service(), BedrockClient())
 
 
 def _handle_alert_http(event: dict[str, Any]) -> dict[str, Any]:
@@ -101,6 +118,12 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         event.get("rawPath") == "/alerts" or event.get("rawPath", "").startswith("/alerts/")
     ):
         return _handle_alert_http(event)
+    if http.get("method") and (
+        event.get("rawPath") == "/incidents" or event.get("rawPath", "").startswith("/incidents/")
+    ):
+        from api.incidents import IncidentsRouter
+
+        return IncidentsRouter(_incident_query_service, _ask_service).handle(event)
     if http.get("method") and (
         event.get("rawPath") == "/investigations"
         or event.get("rawPath", "").startswith("/investigations/")

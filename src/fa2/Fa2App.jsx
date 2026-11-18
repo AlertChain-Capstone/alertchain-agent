@@ -29,7 +29,7 @@ export default function Fa2App({ ref, route, active }) {
     const value = typeof next === 'function' ? next(view) : next
     const inv = investigations.find((item) => item.id === value.id)
     const path = value.name === 'home' ? '/investigations'
-      : value.tab === 'chain' && inv?.incidentId ? `/incidents/${inv.incidentId}/chain`
+      : !LIVE && value.tab === 'chain' && inv?.incidentId ? `/incidents/${inv.incidentId}/chain`
       : `/investigations/${value.id}`
     navigate(path, { state: value })
   }
@@ -64,14 +64,14 @@ export default function Fa2App({ ref, route, active }) {
   useEffect(() => () => clearTimeout(saveTimer.current), [])
 
   useEffect(() => {
-    if (!LIVE) return undefined
+    if (!LIVE || !active || view.name !== 'home') return undefined
     const controller = new AbortController()
     alertApi.listAlerts({}, 1, 100, { signal: controller.signal }).then(
       (page) => setLiveAlerts({ status: 'ready', rows: page.alerts }),
       (err) => { if (err.name !== 'AbortError') setLiveAlerts({ status: 'error', rows: [], message: err.message }) },
     )
     return () => controller.abort()
-  }, [])
+  }, [active, view.name])
 
   // Stop polling when FA2 unmounts. Forgetting the IDs lets a remount (React StrictMode
   // mounts twice in dev) start polling them again.
@@ -238,6 +238,7 @@ export default function Fa2App({ ref, route, active }) {
     if (inv?.pending) resolve(id, inv.pending)
   }
 
+  if (!active) return null
   const alert = current && (current.alertSnapshot ?? alertOrPlaceholder(current.alertId))
 
   return (

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 // Abort the transport and guard completions: even a transport ignoring abort cannot win a race.
-export default function useAlertRead(key, load, enabled = true) {
+export default function useApiRead(key, load, enabled = true) {
   const [attempt, setAttempt] = useState(0)
   const [result, setResult] = useState(null)
   useEffect(() => {

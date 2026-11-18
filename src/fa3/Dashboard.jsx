@@ -1,8 +1,46 @@
 import { Link } from 'react-router'
-import { Badge, PageHeading } from './Ui.jsx'
-import { formatDate, selectIncidents } from './fa3Data.js'
+import { Badge, Notice, PageHeading } from './Ui.jsx'
+import { formatDate, incidentTime, selectIncidents } from './fa3Data.js'
+import { incidentsApi } from './api.js'
+import useApiRead from '../shared/useApiRead.js'
+
+function IncidentCards({ incidents }) {
+  return incidents.map((incident) => {
+    const path = `/incidents/${encodeURIComponent(incident.id)}`
+    return <article className="fa3-attention" key={incident.id}>
+      <div><span className="fa3-mono">{incident.id}</span><Badge value={incident.severity} /></div>
+      <h3><Link to={path}>{incident.title}</Link></h3>
+      <p>{incident.status} · {incidentTime(incident)}</p>
+      <Link className="fa3-text-action" to={path}>Review incident →</Link>
+    </article>
+  })
+}
+
+const loadOverview = (signal) => incidentsApi.list({}, 1, 4, { signal })
+
+function LiveDashboard({ onFilter }) {
+  const read = useApiRead('dashboard', loadOverview)
+  return <>
+    <PageHeading title="Dashboard" eyebrow="SECURITY OVERVIEW">
+      <p>Review recorded incidents and their supporting evidence.</p>
+    </PageHeading>
+    <div className="fa3-actions">
+      <Link to="/incidents" onClick={() => onFilter('')}>View all incidents</Link>
+      <Link to="/incidents" onClick={() => onFilter('Open')}>Open incidents</Link>
+      <Link to="/incidents" onClick={() => onFilter('Needs human review')}>Needs human review</Link>
+    </div>
+    {read.status === 'loading' ? <Notice title="Loading incidents…" />
+      : read.status === 'error' ? <Notice title="Incidents could not be loaded" error><p>{read.error.message}</p><button onClick={read.retry}>Retry</button></Notice>
+      : read.data.totalIncidents === 0 ? <Notice title="No incidents available"><button onClick={read.retry}>Refresh</button></Notice>
+      : <section className="fa3-card">
+        <div className="fa3-section-heading"><h2>Highest-priority incidents</h2><span>{read.data.totalIncidents} recorded</span></div>
+        <IncidentCards incidents={read.data.incidents} />
+      </section>}
+  </>
+}
 
 export default function Dashboard({ data, onFilter }) {
+  if (!incidentsApi.mock) return <LiveDashboard onFilter={onFilter} />
   const active = data.incidents.filter((incident) => incident.status !== 'Closed')
   const open = data.incidents.filter((incident) => incident.status === 'Open')
   const review = data.incidents.filter((incident) => incident.needsReview)
@@ -21,14 +59,7 @@ export default function Dashboard({ data, onFilter }) {
       <div className="fa3-dashboard-grid">
         <section className="fa3-card">
           <div className="fa3-section-heading"><h2>Incidents needing attention</h2><Link to="/incidents" onClick={() => onFilter('')}>View all incidents →</Link></div>
-          {recent.map((incident) => (
-            <article className="fa3-attention" key={incident.id}>
-              <div><span className="fa3-mono">{incident.id}</span><Badge value={incident.severity} /></div>
-              <h3><Link to={`/incidents/${incident.id}`}>{incident.title}</Link></h3>
-              <p>{incident.status} · {formatDate(incident.occurredAt)}</p>
-              <Link className="fa3-text-action" to={`/incidents/${incident.id}`}>Review incident →</Link>
-            </article>
-          ))}
+          <IncidentCards incidents={recent} />
         </section>
         <div className="fa3-stack">
           <section className="fa3-card"><h2>Source health</h2>

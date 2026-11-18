@@ -72,6 +72,10 @@
 .fa3-actions, .fa3-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 18px 0 24px; }
 .fa3-meta { color: #667085; font-size: 12px; }
 .fa3-report-summary { font-size: 15px; line-height: 1.8; max-width: 95ch; }
+.fa3-recorded-evidence { margin-top: 24px; }
+.fa3-recorded-evidence article { border-top: 1px solid #edf0f4; padding: 12px 0; overflow-wrap: anywhere; }
+.fa3-recorded-evidence summary { cursor: pointer; }
+.fa3-recorded-evidence pre { max-height: 320px; overflow: auto; padding: 16px; background: #f2f4f7; }
 .fa3-report-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 24px; margin-top: 24px; }
 .fa3-timeline { padding-left: 20px; margin-bottom: 0; }
 .fa3-timeline li { padding: 0 0 20px 10px; border-left: 1px solid #dee5ee; }
@@ -88,6 +92,9 @@
 .fa3-suggestions p { color: #667085; font-size: 11px; }
 .fa3-suggestions button { display: block; margin: 8px 0; text-align: left; font-weight: 400; }
 .fa3-response { margin-top: 20px; }
+.fa3-live-ask { max-width: 800px; }
+.fa3-live-ask .fa3-answer p { white-space: pre-line; overflow-wrap: anywhere; }
+.fa3-live-ask details { margin: 12px 0; overflow-wrap: anywhere; }
 .fa3-question-bubble { background: #edf3fa; padding: 14px 18px; border-radius: 8px; overflow-wrap: anywhere; }
 .fa3-answer { padding: 18px 0 0; }
 .fa3-answer-limitation { color: #865510; background: #fffaeb; border-left: 3px solid #e7be71; padding: 12px; }

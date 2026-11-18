@@ -1,13 +1,6 @@
 # Running AlertChain locally with the real Bedrock agent
 
-The backend and the frontend run in **Floci** (local AWS on Docker). Only the investigation
-agent calls **real Amazon Bedrock** (Nova Micro, about $0.0001 per investigation). Everything
-else, including the DynamoDB data, stays on your machine.
-
-> **Live frontend needs [#18](https://github.com/AlertChain-Capstone/alertchain-agent/pull/18).**
-> Until it is merged, `deploy-floci-frontend.ps1` on `main` still builds the mock frontend, where
-> **Investigate** runs a simulated agent. To test the full flow before then, check out
-> `fix/floci-real-bedrock` instead of `main` in step 1.
+The backend and frontend run in **Floci** (local AWS on Docker). The investigation agent and incident questions use **Amazon Bedrock** when the backend is configured with a team profile. DynamoDB runs locally.
 
 ## What you need
 
@@ -77,6 +70,8 @@ Open <http://alertchain-frontend-local.s3-website-us-east-2.localhost.floci.io:4
 alert and click **Investigate**. After a few seconds you should see real reasoning steps
 (`get_related_events`, `check_actor_baseline`, ...) and a completed verdict with a severity and
 a confidence.
+
+When the investigation opens an incident, follow **Open incident report**, choose **Ask the Agent**, and ask about one of the recorded events. Open a citation to inspect the original evidence.
 
 ## Troubleshooting
 

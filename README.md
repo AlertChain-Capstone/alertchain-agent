@@ -21,7 +21,7 @@ The repository includes the FA1, FA2, and FA3 frontend prototypes using fictiona
 
 Implemented FA1 screens cover security signal sources, monitored event configuration, normalized alert browsing, and alert details. The shared layout provides the AlertChain Agent header and sidebar.
 
-The FA2 investigation prototype (Investigation View, Reasoning Trace, Attack Chain) is integrated through the sidebar and alert-detail **Investigate** button. **Open incident** now opens the matching FA3 report. FA3 includes the dashboard, incident list, report, Ask the Agent, and stored-evidence viewer. Live AWS ingestion, AI investigations, and backend integration remain planned work.
+The alert-detail **Investigate** button opens FA2. When an investigation creates an incident, **Open incident report** takes the analyst to its findings and cited evidence. From the report, **Ask the Agent** accepts follow-up questions about that incident.
 
 ## Technology
 
@@ -160,7 +160,7 @@ State is held in React and resets when the page is refreshed. Switching between 
 
 ## FA3 Dashboard & Ask-the-Agent Prototype — M16
 
-Owner: Mattias Kerner. Screens live in `src/fa3/`, and all FA3 incident records, stored evidence, source snapshots, and canned answers live in `src/mock/fa3.json`. The feature branch is `feature/fa3-screens`.
+Owner: Mattias Kerner. Screens live in `src/fa3/`. The examples below use the Inception fixtures in `src/mock/fa3.json`.
 
 - **Dashboard:** incident counts, incidents needing attention, source-health snapshot, and navigation to all areas.
 - **Incident list:** combined ID/title search, severity and status filters, highest-severity/newest-first ordering, and four records per page. Filters and page survive report review.
@@ -195,14 +195,14 @@ Open **Demo scenarios** on the relevant screen to expose its selector. Unless st
 | 15 | Evidence states | After obtaining a normal answer, set **Evidence demo scenario** to missing, temporary error, foreign citation, or segmented preview, then select **View citation E2**. Error Retry succeeds; the preview's Next/Previous controls preserve the evidence ID. |
 | 16 | Return paths and isolation | Close evidence, return to the report, then reopen Ask. The question and answer remain. Switch to `INC-002`: it has its own question/answer context. |
 
-Only the suggested questions (ignoring case, surrounding whitespace, and trailing punctuation) have canned factual answers. This is a UI prototype, not an AI question-answering service. No AWS, Bedrock, or backend calls are made.
+In mock mode, only the suggested questions have canned factual answers. In live mode the incident list and report use `GET /incidents` and `GET /incidents/{id}`. The Ask screen sends a question to `POST /incidents/{id}/questions`. Each answer links to the stored evidence that supports it. A question the evidence cannot answer returns a limitation.
 
 ## Current Limitations and Planned Work
 
 - Data is fictional. Connection tests, configuration, recovery, and save-failure actions are simulated; source scenarios do not alter the alert fixtures or generate live events.
 - State is held locally in React and resets on refresh. There is no server-side persistence or authentication; “SOC Analyst” is a prototype label.
 - `src/shared/AppLayout.jsx` and React Router provide the team shell. The previous FA1-only `#/` entry now opens Dashboard; use `#/sources` for FA1.
-- Backend services, live AWS ingestion, AI reasoning/correlation, and generated incident reports remain planned work. Displayed reports and answers are static fixture content.
+- Set `VITE_API_URL` to the HTTP API and `VITE_USE_MOCK=false` to read stored alerts, investigations and incidents.
 - Copy JSON depends on browser clipboard support and permission. If copying fails, the JSON remains available for manual copying.
 
 ## J9 infrastructure: team AWS sandbox
@@ -286,14 +286,13 @@ read costs, temporary ambiguity behavior, CORS configuration, and pending integr
 are documented in [J11 FA1 contract and local verification](docs/j11-alerts-api.md).
 Floci deployment/API checks and the reported Chrome live-screen checks passed. Captured browser
 logs contained no warnings/errors; the Network panel was not independently inspected.
-List filters reset on full refresh. Real AWS verification and FA2/FA3 live handoffs remain pending.
+List filters reset on full refresh.
 Use `python -B scripts/floci-j11.py inspect`, `deploy`, or `verify` for the documented local-only
 workflow, preserving the existing stack/data. FA1 supports live/mock reads through
 `src/shared/api.js`. Set `VITE_API_URL` to the actual API base URL and
 `VITE_USE_MOCK=false` for live FA1 reads, or `VITE_USE_MOCK=true` to preserve fixtures. With
 no URL, mock mode remains the default. Live request failures never substitute fixture data.
-See the contract document for independent detail requests, configuration compatibility,
-disabled live FA2/FA3 handoffs, and `npm run test:fa1-live` verification.
+Run `npm run test:fa1-live` for the alert and incident browser tests.
 
 ### Local frontend website (Floci only)
 
@@ -318,11 +317,6 @@ Pass `-Mock` for the previous fixture build: it forces `VITE_USE_MOCK=true` with
 | FA1 sources, alerts, alert details | `src/mock/fa1.json` and in-memory UI changes; no backend calls. |
 | FA2 investigations, reasoning trace, attack chain | Fixtures and simulated investigations in this build. Its optional live client uses `POST /investigations` and `GET /investigations/{id}` polling when a base URL is configured and mock mode is off. |
 | FA3 dashboard, incidents, reports, Ask the Agent | `src/mock/fa3.json`, in-memory state, and canned answers; no backend calls. |
-
-The local Floci Lambda now exposes the J11 alert-read routes as well as `GET /health`.
-This S3 website remains a mock build and does not display ingested DynamoDB records;
-the J11 live frontend was verified separately through Vite. Live investigations still
-require backend routing/integration before enabling the FA2 client in a separate build.
 
 Browser verification checklist (the script's HTTP check does **not** complete these checks):
 
