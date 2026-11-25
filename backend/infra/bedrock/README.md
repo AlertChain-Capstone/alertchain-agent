@@ -1,5 +1,13 @@
 # Bedrock model spike
 
+Current source configuration after the FA3 merge selects **Nova Micro** with exact
+ID `us.amazon.nova-micro-v1:0` and source Region `us-east-2`, matching the report
+below. This is a US cross-Region inference profile; the current managed project's
+single-Region constraint blocks its real use. The Floci helper retains that block.
+Historical spike results do not override project restrictions or verify a new
+invocation. Source edits do not change the running deployment. See
+[current setup](../../../docs/local-setup.md) for the compatibility warning and endpoints.
+
 Goal: pick the cheapest Bedrock model that supports the Converse API with tool use. Then confirm one
 complete tool loop works: the model calls `get_related_events(alert_id)`, gets a tool result, and
 writes a final answer.

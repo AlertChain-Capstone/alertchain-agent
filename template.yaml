@@ -5,8 +5,8 @@ Description: AlertChain backend starter with a health endpoint.
 Parameters:
   BedrockModelId:
     Type: String
-    Default: amazon.nova-lite-v1:0
-    Description: Model identifier; use a Region-local model for managed projects without cross-Region inference.
+    Default: us.amazon.nova-micro-v1:0
+    Description: Intended Nova Micro US inference profile; requires cross-Region permissions and is blocked for this single-Region managed project.
   DynamoDBEndpointUrl:
     Type: String
     Default: ''
@@ -224,6 +224,8 @@ Resources:
                 Action:
                   - bedrock:InvokeModel
                 Resource:
+                  # Non-streaming Converse needs InvokeModel on the profile and each
+                  # destination model. These declarations do not override project SCPs.
                   - !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/us.amazon.nova-micro-v1:0
                   - !Sub arn:${AWS::Partition}:bedrock:us-east-1::foundation-model/amazon.nova-micro-v1:0
                   - !Sub arn:${AWS::Partition}:bedrock:us-east-2::foundation-model/amazon.nova-micro-v1:0

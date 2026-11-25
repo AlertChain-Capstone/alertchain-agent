@@ -1,6 +1,7 @@
 """Local-only J11 deployment/verification. Every AWS CLI operation is pinned to Floci.
 
-No AWS credentials/profile are used. Artifacts and evidence are written under the OS temp dir.
+Service operations use dummy credentials; an optional profile is exported only for Bedrock.
+Artifacts and evidence are written under the OS temp dir.
 Deploy updates the existing stack only, rejecting deletions/replacements and preserving data.
 """
 
@@ -25,11 +26,23 @@ import uuid
 
 ENDPOINT = "http://127.0.0.1:4566"
 REGION = "us-east-2"
+DEFAULT_BEDROCK_MODEL_ID = "us.amazon.nova-micro-v1:0"
 STACK = "alertchain-local"
 WEBSITE_ORIGIN = "http://alertchain-frontend-local.s3-website-us-east-2.localhost.floci.io:4566"
 REPO = Path(__file__).resolve().parents[1]
 TABLES = ("alertchain-alerts", "alertchain-investigations", "alertchain-evidence", "alertchain-incidents")
 HTTP = build_opener(ProxyHandler({}))
+
+
+def validate_bedrock_model(model_id, real_bedrock=False):
+    if model_id == "amazon.nova-micro-v1:0":
+        raise ValueError(f"Nova Micro in {REGION} requires the {DEFAULT_BEDROCK_MODEL_ID} inference profile")
+    if real_bedrock and model_id.startswith(("us.", "eu.", "apac.", "global.")):
+        raise ValueError(
+            "Real Bedrock deployment blocked: this managed project forbids cross-Region inference. "
+            "The intended Nova Micro profile is configuration only; no credentials were exported "
+            "and no local or AWS deployment was started."
+        )
 
 
 class Floci:
@@ -149,9 +162,10 @@ class Floci:
                 {"ParameterKey": "BedrockSecretAccessKey", "ParameterValue": creds["SecretAccessKey"]},
                 {"ParameterKey": "BedrockSessionToken", "ParameterValue": creds.get("SessionToken") or ""}]
 
-    def deploy(self, origin, bedrock_profile=None, bedrock_model_id="amazon.nova-lite-v1:0"):
-        if bedrock_model_id.startswith(("us.", "eu.", "apac.", "global.")):
-            raise ValueError("Use a Region-local model ID; cross-Region inference is not supported by this project")
+    def deploy(self, origin, bedrock_profile=None, bedrock_model_id=DEFAULT_BEDROCK_MODEL_ID):
+        # The model ID is harmless for the explicit Floci stub; real profile use
+        # must retain the managed project's existing cross-Region safety boundary.
+        validate_bedrock_model(bedrock_model_id, real_bedrock=bool(bedrock_profile))
         bedrock = self.bedrock_parameters(bedrock_profile)
         parsed = urlparse(origin)
         if parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "localhost") or parsed.path:
@@ -400,16 +414,20 @@ def decode(value):
     return {key: decode(child) for key, child in value.items()}
 
 
-def main():
+def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("inspect", "deploy", "verify"))
     parser.add_argument("--origin", default="http://127.0.0.1:5173")
     parser.add_argument("--bedrock-profile",
                         help="AWS profile whose credentials the Floci Lambda uses for real Bedrock calls")
-    parser.add_argument("--bedrock-model-id", default="amazon.nova-lite-v1:0",
-                        help="Region-local model identifier (no cross-Region inference)")
+    parser.add_argument("--bedrock-model-id", default=DEFAULT_BEDROCK_MODEL_ID,
+                        help="Intended model/profile ID; real cross-Region profiles remain blocked for this project")
     parser.add_argument("--alert-ids", help="Comma-separated IDs from an already-passed J10 smoke run")
-    args = parser.parse_args()
+    return parser
+
+
+def main():
+    args = build_parser().parse_args()
     local = Floci()
     if args.action == "deploy":
         local.deploy(args.origin, args.bedrock_profile, args.bedrock_model_id)
