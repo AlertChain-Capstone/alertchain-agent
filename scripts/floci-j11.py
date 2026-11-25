@@ -45,6 +45,16 @@ def validate_bedrock_model(model_id, real_bedrock=False):
         )
 
 
+def change_set_requires_execution(changes):
+    """Accept only the service's explicit empty-update result as a safe no-op."""
+    if (changes.get("Status") == "FAILED" and not changes.get("Changes")
+            and "The submitted information didn't contain changes." in changes.get("StatusReason", "")):
+        return False
+    if changes.get("Status") != "CREATE_COMPLETE":
+        raise RuntimeError(f"Change set not ready: {changes}")
+    return True
+
+
 class Floci:
     def __init__(self):
         self.executable = shutil.which("aws")
@@ -199,19 +209,22 @@ class Floci:
         changes = self.aws("cloudformation", "describe-change-set", "--stack-name", STACK,
                            "--change-set-name", name)
         self.save("change-set.json", changes)
-        if changes.get("Status") != "CREATE_COMPLETE":
-            raise RuntimeError(f"Change set not ready: {changes}")
+        execute = change_set_requires_execution(changes)
         for change in changes.get("Changes", []):
             resource = change["ResourceChange"]
             print("Change:", resource["Action"], resource["LogicalResourceId"],
                   "replacement", resource.get("Replacement"), flush=True)
             if resource["Action"] == "Remove" or resource.get("Replacement") in ("True", "Conditional"):
                 raise RuntimeError("Refusing change set with removal or replacement")
-        self.aws("cloudformation", "execute-change-set", "--stack-name", STACK, "--change-set-name", name)
+        if execute:
+            self.aws("cloudformation", "execute-change-set", "--stack-name", STACK, "--change-set-name", name)
+        else:
+            print("Stack already matches packaged source and parameters; verifying existing deployment", flush=True)
         deadline = time.monotonic() + 120
         while True:
             stack = self.aws("cloudformation", "describe-stacks", "--stack-name", STACK)["Stacks"][0]
-            if stack["StackStatus"] == "UPDATE_COMPLETE":
+            if (stack["StackStatus"] == "UPDATE_COMPLETE"
+                    or (not execute and stack["StackStatus"] == "CREATE_COMPLETE")):
                 break
             if stack["StackStatus"] != "UPDATE_IN_PROGRESS" or time.monotonic() > deadline:
                 raise RuntimeError(f"Stack update did not complete: {stack['StackStatus']}")
@@ -225,7 +238,7 @@ class Floci:
             stored = {json.dumps(row, sort_keys=True) for row in after[table]}
             assert all(json.dumps(row, sort_keys=True) in stored for row in rows), f"Data changed: {table}"
         self.save("tables-after.json", after)
-        print("PASS stack UPDATE_COMPLETE; original table IDs and every existing record preserved", flush=True)
+        print(f"PASS stack {stack['StackStatus']}; original table IDs and every existing record preserved", flush=True)
         self.ensure_cors(origin)
         print("API:", self.api(), flush=True)
         print("Health:", self.http("/health")[:2], flush=True)
