@@ -72,6 +72,7 @@ try {
         if ($health.StatusCode -ne 200) { throw "Local API health check failed: $apiUrl/health" }
         [Environment]::SetEnvironmentVariable('VITE_USE_MOCK', 'false')
         [Environment]::SetEnvironmentVariable('VITE_API_BASE_URL', $apiUrl)
+        [Environment]::SetEnvironmentVariable('VITE_API_URL', $apiUrl)
         Write-Host "Live build against $apiUrl"
     } else {
         Write-Host 'Mock build: fixtures and the simulated agent, no backend API calls.'

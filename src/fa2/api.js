@@ -14,7 +14,7 @@ const MAX_POLL_FAILURES = 3
 // FA1 accepts VITE_API_URL or VITE_API_BASE_URL; FA2 must agree, or the Investigate
 // button on a live alert would start a simulated run.
 export function apiBaseUrl(env = viteEnv) {
-  return (env.VITE_API_BASE_URL?.trim() || env.VITE_API_URL?.trim() || '')
+  return (env.VITE_API_URL?.trim() || env.VITE_API_BASE_URL?.trim() || '').replace(/\/+$/, '')
 }
 
 export function isMockMode(env = viteEnv) {

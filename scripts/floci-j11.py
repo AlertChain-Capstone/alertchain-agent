@@ -1,6 +1,7 @@
 """Local-only J11 deployment/verification. Every AWS CLI operation is pinned to Floci.
 
-No AWS credentials/profile are used. Artifacts and evidence are written under the OS temp dir.
+Service operations use dummy credentials; an optional profile is exported only for Bedrock.
+Artifacts and evidence are written under the OS temp dir.
 Deploy updates the existing stack only, rejecting deletions/replacements and preserving data.
 """
 
@@ -25,11 +26,33 @@ import uuid
 
 ENDPOINT = "http://127.0.0.1:4566"
 REGION = "us-east-2"
+DEFAULT_BEDROCK_MODEL_ID = "us.amazon.nova-micro-v1:0"
 STACK = "alertchain-local"
 WEBSITE_ORIGIN = "http://alertchain-frontend-local.s3-website-us-east-2.localhost.floci.io:4566"
 REPO = Path(__file__).resolve().parents[1]
 TABLES = ("alertchain-alerts", "alertchain-investigations", "alertchain-evidence", "alertchain-incidents")
 HTTP = build_opener(ProxyHandler({}))
+
+
+def validate_bedrock_model(model_id, real_bedrock=False):
+    if model_id == "amazon.nova-micro-v1:0":
+        raise ValueError(f"Nova Micro in {REGION} requires the {DEFAULT_BEDROCK_MODEL_ID} inference profile")
+    if real_bedrock and model_id.startswith(("us.", "eu.", "apac.", "global.")):
+        raise ValueError(
+            "Real Bedrock deployment blocked: this managed project forbids cross-Region inference. "
+            "The intended Nova Micro profile is configuration only; no credentials were exported "
+            "and no local or AWS deployment was started."
+        )
+
+
+def change_set_requires_execution(changes):
+    """Accept only the service's explicit empty-update result as a safe no-op."""
+    if (changes.get("Status") == "FAILED" and not changes.get("Changes")
+            and "The submitted information didn't contain changes." in changes.get("StatusReason", "")):
+        return False
+    if changes.get("Status") != "CREATE_COMPLETE":
+        raise RuntimeError(f"Change set not ready: {changes}")
+    return True
 
 
 class Floci:
@@ -149,7 +172,10 @@ class Floci:
                 {"ParameterKey": "BedrockSecretAccessKey", "ParameterValue": creds["SecretAccessKey"]},
                 {"ParameterKey": "BedrockSessionToken", "ParameterValue": creds.get("SessionToken") or ""}]
 
-    def deploy(self, origin, bedrock_profile=None):
+    def deploy(self, origin, bedrock_profile=None, bedrock_model_id=DEFAULT_BEDROCK_MODEL_ID):
+        # The model ID is harmless for the explicit Floci stub; real profile use
+        # must retain the managed project's existing cross-Region safety boundary.
+        validate_bedrock_model(bedrock_model_id, real_bedrock=bool(bedrock_profile))
         bedrock = self.bedrock_parameters(bedrock_profile)
         parsed = urlparse(origin)
         if parsed.scheme != "http" or parsed.hostname not in ("127.0.0.1", "localhost") or parsed.path:
@@ -177,24 +203,28 @@ class Floci:
                  self.file_arg("parameters.json", [
                      {"ParameterKey": "DynamoDBEndpointUrl", "ParameterValue": "http://host.docker.internal:4566"},
                      {"ParameterKey": "CorsAllowedOrigins", "ParameterValue": f"{origin},{WEBSITE_ORIGIN}"},
+                     {"ParameterKey": "BedrockModelId", "ParameterValue": bedrock_model_id},
                      *bedrock,
                  ]))
         changes = self.aws("cloudformation", "describe-change-set", "--stack-name", STACK,
                            "--change-set-name", name)
         self.save("change-set.json", changes)
-        if changes.get("Status") != "CREATE_COMPLETE":
-            raise RuntimeError(f"Change set not ready: {changes}")
+        execute = change_set_requires_execution(changes)
         for change in changes.get("Changes", []):
             resource = change["ResourceChange"]
             print("Change:", resource["Action"], resource["LogicalResourceId"],
                   "replacement", resource.get("Replacement"), flush=True)
             if resource["Action"] == "Remove" or resource.get("Replacement") in ("True", "Conditional"):
                 raise RuntimeError("Refusing change set with removal or replacement")
-        self.aws("cloudformation", "execute-change-set", "--stack-name", STACK, "--change-set-name", name)
+        if execute:
+            self.aws("cloudformation", "execute-change-set", "--stack-name", STACK, "--change-set-name", name)
+        else:
+            print("Stack already matches packaged source and parameters; verifying existing deployment", flush=True)
         deadline = time.monotonic() + 120
         while True:
             stack = self.aws("cloudformation", "describe-stacks", "--stack-name", STACK)["Stacks"][0]
-            if stack["StackStatus"] == "UPDATE_COMPLETE":
+            if (stack["StackStatus"] == "UPDATE_COMPLETE"
+                    or (not execute and stack["StackStatus"] == "CREATE_COMPLETE")):
                 break
             if stack["StackStatus"] != "UPDATE_IN_PROGRESS" or time.monotonic() > deadline:
                 raise RuntimeError(f"Stack update did not complete: {stack['StackStatus']}")
@@ -208,7 +238,7 @@ class Floci:
             stored = {json.dumps(row, sort_keys=True) for row in after[table]}
             assert all(json.dumps(row, sort_keys=True) in stored for row in rows), f"Data changed: {table}"
         self.save("tables-after.json", after)
-        print("PASS stack UPDATE_COMPLETE; original table IDs and every existing record preserved", flush=True)
+        print(f"PASS stack {stack['StackStatus']}; original table IDs and every existing record preserved", flush=True)
         self.ensure_cors(origin)
         print("API:", self.api(), flush=True)
         print("Health:", self.http("/health")[:2], flush=True)
@@ -397,17 +427,23 @@ def decode(value):
     return {key: decode(child) for key, child in value.items()}
 
 
-def main():
+def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("inspect", "deploy", "verify"))
     parser.add_argument("--origin", default="http://127.0.0.1:5173")
     parser.add_argument("--bedrock-profile",
                         help="AWS profile whose credentials the Floci Lambda uses for real Bedrock calls")
+    parser.add_argument("--bedrock-model-id", default=DEFAULT_BEDROCK_MODEL_ID,
+                        help="Intended model/profile ID; real cross-Region profiles remain blocked for this project")
     parser.add_argument("--alert-ids", help="Comma-separated IDs from an already-passed J10 smoke run")
-    args = parser.parse_args()
+    return parser
+
+
+def main():
+    args = build_parser().parse_args()
     local = Floci()
     if args.action == "deploy":
-        local.deploy(args.origin, args.bedrock_profile)
+        local.deploy(args.origin, args.bedrock_profile, args.bedrock_model_id)
     elif args.action == "verify":
         local.verify(args.alert_ids.split(",") if args.alert_ids else [], args.origin)
     else:

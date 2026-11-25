@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createInvestigationsApi, fromApiInvestigation, isMockMode, pendingApiInvestigation, POLL_INTERVAL_MS } from '../src/fa2/api.js'
+import { apiBaseUrl, createInvestigationsApi, fromApiInvestigation, isMockMode, pendingApiInvestigation, POLL_INTERVAL_MS } from '../src/fa2/api.js'
+import { apiUrl } from '../src/shared/api.js'
 
 const RUNNING = {
   investigationId: 'INV-abc', alertId: 'A-1', status: 'RUNNING', statusReason: null,
@@ -50,6 +51,12 @@ test('VITE_API_URL alone also selects live mode, matching FA1', () => {
   assert.equal(isMockMode({ VITE_API_URL: 'https://api.example', VITE_API_BASE_URL: '' }), false)
   assert.equal(isMockMode({ VITE_USE_MOCK: 'true', VITE_API_URL: 'https://api.example' }), true)
   assert.equal(isMockMode({ VITE_API_URL: '  ' }), true)
+})
+
+test('alert and investigation requests use the same configured backend when URL aliases conflict', () => {
+  const env = { VITE_API_URL: ' http://127.0.0.1:4566/current/ ', VITE_API_BASE_URL: 'http://127.0.0.1:4566/stale' }
+  assert.equal(apiBaseUrl(env), apiUrl(env))
+  assert.equal(apiBaseUrl(env), 'http://127.0.0.1:4566/current')
 })
 
 test('API errors show the backend message, in both the alert and FastAPI error shapes', async () => {

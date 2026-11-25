@@ -238,6 +238,7 @@ export default function Fa2App({ ref, route, active }) {
     if (inv?.pending) resolve(id, inv.pending)
   }
 
+  // Keep state and the FA1 handoff ref mounted without rendering a hidden second screen.
   if (!active) return null
   const alert = current && (current.alertSnapshot ?? alertOrPlaceholder(current.alertId))
 
