@@ -117,3 +117,62 @@ semantic correctness is not established by mocked tests. Existing AWS IAM exampl
 and production access controls still require separate AWS-deployment review. Dated
 November 16 architecture/verification documents describe historical behavior; the
 user's untracked architecture document was intentionally not rewritten or committed.
+
+## Follow-up: intended Nova Micro configuration
+
+After merge commit `16256911cb7ac0d61c2c2a3c12f5497d6194b492`, the requested
+source configuration was aligned with the team's model report:
+
+- Exact model ID: **`us.amazon.nova-micro-v1:0`** (US inference profile).
+- Source Region: **`us-east-2`**. This is not the bare `amazon.nova-micro-v1:0`
+  in-Region identifier. AWS documents no in-Region Micro support in Ohio; this
+  profile routes among `us-east-1`, `us-east-2`, and `us-west-2`.
+- SAM parameter default and both Floci deployment entry points now match the
+  existing Python BedrockSettings/orchestrator defaults. Investigations and
+  incident questions share that configured client. There is no automatic Lite fallback.
+- Existing `AgentInvokeBedrock` IAM scope already permits non-streaming Converse's
+  `bedrock:InvokeModel` on the Micro profile ARN in the calling project/Region and
+  on Micro foundation-model ARNs in all three destinations. No wildcard permissions,
+  streaming permissions, or real IAM changes were added. This verifies template
+  declarations, not the active signing identity's effective permissions or SCPs.
+- Real Bedrock stays at `https://bedrock-runtime.us-east-2.amazonaws.com` with
+  separate profile-exported credentials; DynamoDB, self-invocation, packaging and
+  deployment service endpoints remain pinned to Floci. Existing endpoint/client
+  tests and new offline parameter-builder tests cover this separation.
+
+**Compatibility blocker remains:** the current managed project prohibits
+cross-Region inference. Configuring the intended Micro profile does not remove
+that restriction. The Floci helper allows the explicit local stub to carry the
+profile identifier but blocks real-profile deployment before credential export
+or service calls. It also rejects the bare Micro ID in `us-east-2`, rather than
+pretending that is a compatible single-Region alternative. No Region was changed
+and no compatibility safeguard was bypassed. A compatible environment/project
+capability decision is required before real use; no paid/advanced feature change
+was made or requested as part of this source edit.
+
+Current setup documentation and the model report's introductory note now explain
+the intended profile, IAM needs, endpoint boundary and blocker. November 16 reports
+and the user's untracked architecture document remain historical evidence of the
+previous deployment; their recorded Lite configuration was not retroactively edited.
+The running backend was not updated by this task.
+
+Follow-up checks (offline; no model invocation or deployment):
+
+| Check | Result |
+| --- | --- |
+| Full backend pytest suite | 363 passed; existing Starlette/httpx deprecation warning only |
+| Frontend unit tests | 37 passed |
+| ESLint / production build / whitespace | Passed |
+| `scripts/tests/test-bedrock-model-template.py` with installed SAM runtime | Passed: transform, ten paths, unchanged tables, model default/reference and exact four-resource Micro IAM scope |
+| Added configuration tests | SDK/helper/CLI defaults agree; stub uses no real credentials; real-profile block precedes export/API calls; bare Micro ID rejected; mocked export preserves public Bedrock versus local service endpoints |
+
+Browser suites were not rerun for this configuration/documentation-only follow-up;
+their prior 32 passes above remain the merge's browser evidence. No live model
+access/permission test was performed. No commit, push, main merge, deployment,
+credential refresh, database change, or Bedrock invocation was performed for this
+follow-up. Intended source configuration is aligned, but real Micro deployment
+is **blocked for the current managed project**, not runtime-ready.
+
+References checked for compatibility and permission requirements:
+[AWS Nova Micro model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-amazon-nova-micro.html),
+[AWS inference-profile prerequisites](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-prereq.html).
